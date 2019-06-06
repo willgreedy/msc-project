@@ -1,0 +1,14 @@
+{
+  "leak_conductance": 0.1,
+  "apical_conductance": 0.8,
+  "basal_conductance": 1.0,
+  "dendritic_conductance": 1.0,
+  "nudging_conductance": 0.8,
+  "weight_intialisation":{
+    "type": "uniform",
+    "lower_bound": -0.1,
+    "upper_bound": 0.1
+  },
+  "transfer_function": "soft-rectify",
+  "background_noise_std": 0.1
+}
