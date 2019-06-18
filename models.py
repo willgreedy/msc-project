@@ -38,3 +38,17 @@ class MultiCompartmentModel:
 
     def get_layers(self):
         return self.layers
+
+    def __str__(self):
+        model_string = "MultiCompartment model with {} layers.".format(len(self.layers))
+        model_string += "\n"
+        model_string += "Input size = " + str(self.input_size)
+        for layer_name, layer in self.layers:
+            model_string += "\n"
+            model_string += layer_name
+            model_string += ": "
+            model_string += str(layer.num_neurons) + " neurons"
+        model_string += "\n"
+        model_string += "Output size = " + str(self.output_size)
+
+        return model_string

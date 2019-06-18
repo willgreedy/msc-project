@@ -4,7 +4,7 @@ from layers import StandardLayer, OutputPyramidalLayer
 
 
 class DynamicsSimulator:
-    def __init__(self, model, parameters):
+    def __init__(self, model, parameters, monitors=list()):
         self.model = model
         self.iter_step = 0
 
@@ -18,11 +18,17 @@ class DynamicsSimulator:
         self.background_noise_std = self.parameters['background_noise_std']
         self.transfer_function = create_transfer_function(self.parameters['transfer_function'])
         self.plastic_feedback_weights = self.parameters['plastic_feedback_weights']
+        self.monitors = monitors
 
     def run_simulation(self, max_iterations):
+        for monitor in self.monitors:
+            monitor.update(self.iter_step)
+
         while self.iter_step < max_iterations:
             self.iter_step += 1
             self.step_simulation()
+            for monitor in self.monitors:
+                monitor.update(self.iter_step)
 
     def step_simulation(self):
         self.compute_updates()
@@ -31,7 +37,8 @@ class DynamicsSimulator:
 
     def compute_updates(self):
         # inputs = self.data_stream.get_inputs(self.iter_step)
-        inputs = np.zeros((self.model.input_size, 1))
+        #inputs = np.zeros((self.model.input_size, 1))
+        inputs = np.ones((self.model.input_size, 1))
 
         # output_targets = self.data_stream.get_output_target(self.iter_step)
         output_targets = np.zeros((self.model.output_size, 1))

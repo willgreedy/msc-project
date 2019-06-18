@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC
+import matplotlib.pyplot as plt
 
 
 def create_transfer_function(config):
@@ -12,6 +13,16 @@ def create_transfer_function(config):
         return lambda u: gamma * np.log(1 + np.exp(beta * (u - theta)))
     else:
         raise Exception("Invalid transfer function: {}".format(type))
+
+
+def create_plot(monitor):
+    iter_numbers, values = monitor.get_values()
+    plt.plot(iter_numbers, values)
+    plt.title(monitor.get_var_name())
+
+
+def show_plots():
+    plt.show()
 
 
 class Initialiser(ABC):
@@ -27,3 +38,4 @@ class UniformInitialiser(Initialiser):
 
     def sample(self, shape):
         return np.random.uniform(self.lower_bound, self.upper_bound, shape)
+

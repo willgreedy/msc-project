@@ -1,8 +1,9 @@
 import sys
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser
+from helpers import UniformInitialiser, create_plot, show_plots
 from dynamics_simulator import DynamicsSimulator
+from monitors import DataMonitor, CellMonitor
 
 
 class ExperimentBuilder:
@@ -47,10 +48,18 @@ class ExperimentBuilder:
                                       interneuron_learning_rate,
                                       feedback_learning_rate)
 
-        self.dynamics_simulator = DynamicsSimulator(model, config)
+        print("Created {}".format(str(model)))
+
+        self.monitors = []
+        self.monitors += [CellMonitor(model, 0, "pyramidal_soma", 0)]
+
+        self.dynamics_simulator = DynamicsSimulator(model, config, self.monitors)
 
     def start_experiment(self):
-        self.dynamics_simulator.run_simulation(1000)
+        self.dynamics_simulator.run_simulation(5000)
+        for monitor in self.monitors:
+            create_plot(monitor)
+        show_plots()
 
 
 if __name__ == '__main__':
