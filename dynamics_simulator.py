@@ -4,8 +4,9 @@ from layers import StandardLayer, OutputPyramidalLayer
 
 
 class DynamicsSimulator:
-    def __init__(self, model, parameters, monitors=list()):
+    def __init__(self, model, input_output_stream, parameters, monitors=list()):
         self.model = model
+        self.input_output_stream = input_output_stream
         self.iter_step = 0
 
         self.parameters = parameters
@@ -36,12 +37,11 @@ class DynamicsSimulator:
         self.reset_stored_updates()
 
     def compute_updates(self):
-        # inputs = self.data_stream.get_inputs(self.iter_step)
+        inputs = self.input_output_stream.get_inputs(self.iter_step)
         #inputs = np.zeros((self.model.input_size, 1))
-        inputs = np.ones((self.model.input_size, 1))
 
-        # output_targets = self.data_stream.get_output_target(self.iter_step)
-        output_targets = np.zeros((self.model.output_size, 1))
+        output_targets = self.input_output_stream.get_output_targets(self.iter_step)
+        #output_targets = np.zeros((self.model.output_size, 1))
 
         layers = self.model.get_layers()
 

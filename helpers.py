@@ -17,9 +17,14 @@ def create_transfer_function(config):
 
 def create_plot(monitor):
     iter_numbers, values = monitor.get_values()
+    plt.figure()
     plt.plot(iter_numbers, values)
     plt.title(monitor.get_var_name())
 
+
+def create_MNIST_visualisation(image):
+    plt.figure()
+    plt.imshow(image.reshape(28,28), cmap='Greys')
 
 def show_plots():
     plt.show()

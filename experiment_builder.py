@@ -1,8 +1,9 @@
 import sys
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, create_plot, show_plots
+from helpers import UniformInitialiser, create_plot, create_MNIST_visualisation, show_plots
 from dynamics_simulator import DynamicsSimulator
+from data_streams import InputOutputStream, ConstantStream, CyclingStream, MNISTInputOutputStream
 from monitors import DataMonitor, CellMonitor
 
 
@@ -51,9 +52,23 @@ class ExperimentBuilder:
         print("Created {}".format(str(model)))
 
         self.monitors = []
-        self.monitors += [CellMonitor(model, 0, "pyramidal_soma", 0)]
+        self.monitors += [CellMonitor(model, 0, "interneuron_basal", 0)]
+        self.monitors += [CellMonitor(model, 1, "pyramidal_basal", 0)]
+        self.monitors += [CellMonitor(model, 0, "pyramidal_apical", 0)]
+        #self.monitors += [CellMonitor(model, 0, "interneuron_basal", 0)]
 
-        self.dynamics_simulator = DynamicsSimulator(model, config, self.monitors)
+        input_output_stream = MNISTInputOutputStream('datasets/mnist/train_images.idx3-ubyte',
+                                        'datasets/mnist/train_labels.idx1-ubyte',
+                                        1000)
+
+        create_MNIST_visualisation(input_output_stream.get_inputs(2001))
+        print(input_output_stream.get_output_targets(2001))
+
+        input_stream = CyclingStream((input_size, 1), [0, 1], 1000)
+        output_stream = CyclingStream((output_size, 1), [0, 1], 1000)
+        input_output_stream = InputOutputStream(input_stream, output_stream)
+
+        self.dynamics_simulator = DynamicsSimulator(model, input_output_stream, config, self.monitors)
 
     def start_experiment(self):
         self.dynamics_simulator.run_simulation(5000)

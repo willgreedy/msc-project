@@ -1,11 +1,15 @@
 {
   "ms_per_time_step": 10,
   "resting_potential": 0,
+
   "leak_conductance": 0.1,
   "apical_conductance": 0.8,
   "basal_conductance": 1.0,
   "dendritic_conductance": 1.0,
   "nudging_conductance": 0.8,
+
+  "background_noise_std": 0.1,
+
   "weight_intialisation":{
     "type": "uniform",
     "lower_bound": -1,
@@ -17,7 +21,6 @@
     "beta": 1,
     "theta": 3
   },
-  "background_noise_std": 0.1,
   "network_architecture":{
     "input_size": 30,
     "output_size": 10,
