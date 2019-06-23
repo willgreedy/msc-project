@@ -1,10 +1,10 @@
 import sys
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, create_plot, create_MNIST_visualisation, show_plots
+from helpers import UniformInitialiser, create_plot, create_diff_plot, visualise_MNIST, show_plots
 from dynamics_simulator import DynamicsSimulator
 from data_streams import InputOutputStream, ConstantStream, CyclingStream, MNISTInputOutputStream
-from monitors import DataMonitor, CellMonitor
+from monitors import MonitorBuilder
 
 
 class ExperimentBuilder:
@@ -51,33 +51,66 @@ class ExperimentBuilder:
 
         print("Created {}".format(str(model)))
 
+        monitor_frequency = 1
         self.monitors = []
-        self.monitors += [CellMonitor(model, 0, "interneuron_basal", 0)]
-        self.monitors += [CellMonitor(model, 1, "pyramidal_basal", 0)]
-        self.monitors += [CellMonitor(model, 0, "pyramidal_apical", 0)]
-        #self.monitors += [CellMonitor(model, 0, "interneuron_basal", 0)]
 
-        input_output_stream = MNISTInputOutputStream('datasets/mnist/train_images.idx3-ubyte',
-                                        'datasets/mnist/train_labels.idx1-ubyte',
-                                        1000)
+        self.monitors += [MonitorBuilder.create_feedforward_predict_weight_diff_monitor(model, 1, 0, update_frequency=monitor_frequency)]
 
-        create_MNIST_visualisation(input_output_stream.get_inputs(2001))
-        print(input_output_stream.get_output_targets(2001))
+        self.monitors += [MonitorBuilder.create_weight_monitor(model, "feedforward_weights", 0, 0, 0, update_frequency=monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_weight_monitor(model, "feedforward_weights", 1, 0, 0, update_frequency=monitor_frequency)]
 
-        input_stream = CyclingStream((input_size, 1), [0, 1], 1000)
-        output_stream = CyclingStream((output_size, 1), [0, 1], 1000)
+        #self.monitors += [MonitorBuilder.create_weight_monitor(model, "feedback_weights", 0, 0, 0, update_frequency=monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor(model, "predict_weights", 0, 0, 0, update_frequency=monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 0, "pyramidal_basal", 0, update_frequency=monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 0, "pyramidal_soma", 0, update_frequency=monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 0, "pyramidal_apical", 0, update_frequency=monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 0, "interneuron_basal", 0, update_frequency=monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 0, "interneuron_soma", 0, update_frequency=monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_basal_soma_rate_diff_monitor(model, 0, 0, config, update_frequency=monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 1, "pyramidal_basal", 0, update_frequency=monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor(model, 1, "pyramidal_soma", 0, update_frequency=monitor_frequency)]
+
+        #input_output_stream = MNISTInputOutputStream('datasets/mnist/train_images.idx3-ubyte',
+        #                                'datasets/mnist/train_labels.idx1-ubyte',
+        #                                1000)
+
+        #visualise_MNIST(input_output_stream.get_inputs(2001))
+        #print(input_output_stream.get_output_targets(2001))
+
+        #input_stream = CyclingStream((input_size, 1), [0, 0.8], 300000)
+        #output_stream = CyclingStream((output_size, 1), [0, 0.8], 300000)
+
+        input_stream = ConstantStream((input_size, 1), 0.02)
+        output_stream = ConstantStream((output_size, 1), 0.02)
+
         input_output_stream = InputOutputStream(input_stream, output_stream)
+
+        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0, update_frequency=monitor_frequency)]
 
         self.dynamics_simulator = DynamicsSimulator(model, input_output_stream, config, self.monitors)
 
     def start_experiment(self):
-        self.dynamics_simulator.run_simulation(5000)
+        num_iterations = 500000
+        self.dynamics_simulator.run_simulation(num_iterations)
+        self.plot_monitors()
+
+    def plot_monitors(self):
         for monitor in self.monitors:
             create_plot(monitor)
+        create_diff_plot(self.monitors[-1], self.monitors[-2])
         show_plots()
-
 
 if __name__ == '__main__':
     input_args = sys.argv[1:]
     experiment = ExperimentBuilder(input_args)
+
+    import atexit
+    atexit.register(experiment.plot_monitors)
     experiment.start_experiment()
+
+

@@ -2,18 +2,18 @@
   "ms_per_time_step": 0.1,
   "resting_potential": 0,
 
-  "leak_conductance": 0.1,
-  "apical_conductance": 0.8,
-  "basal_conductance": 1.0,
-  "dendritic_conductance": 1.0,
-  "nudging_conductance": 0.8,
+  "leak_conductance": 0.005,
+  "apical_conductance": 0.06,
+  "basal_conductance": 0.07,
+  "dendritic_conductance": 0.7,
+  "nudging_conductance": 0.05,
 
-  "background_noise_std": 0.1,
+  "background_noise_std": 0.001,
 
   "weight_intialisation":{
     "type": "uniform",
-    "lower_bound": -1,
-    "upper_bound": 1
+    "lower_bound": -0.1,
+    "upper_bound": 0.1
   },
   "transfer_function": {
     "type": "soft-rectify"
@@ -24,10 +24,10 @@
     "layer_sizes": [50, 10]
   },
 
-  "feedforward_learning_rate": 0.0011875,
-  "predict_learning_rate": 0.0011875,
-  "interneuron_learning_rate": 0.0002375,
-  "feedback_learning_rate": 0.0011875,
+  "feedforward_learning_rate": 0.00011875,
+  "predict_learning_rate": 0.00011875,
+  "interneuron_learning_rate": 0.00002375,
+  "feedback_learning_rate": 0.00011875,
 
   "plastic_feedforward_weights": true,
   "plastic_predict_weights": true,

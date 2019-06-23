@@ -15,16 +15,34 @@ def create_transfer_function(config):
         raise Exception("Invalid transfer function: {}".format(type))
 
 
+def create_diff_plot(monitor1, monitor2):
+    iter_numbers, values1 = monitor1.get_values()
+    _, values2 = monitor2.get_values()
+    print("Creating diff plot with {} values.".format(len(values1)))
+    plt.figure()
+    plt.plot(iter_numbers, np.array(values1) - np.array(values2))
+    plt.title(monitor1.get_var_name() + "-" + monitor2.get_var_name())
+
+
 def create_plot(monitor):
     iter_numbers, values = monitor.get_values()
+    print("Creating plot with {} values.".format(len(values)))
     plt.figure()
     plt.plot(iter_numbers, values)
     plt.title(monitor.get_var_name())
 
 
-def create_MNIST_visualisation(image):
+def visualise_MNIST(image):
     plt.figure()
     plt.imshow(image.reshape(28,28), cmap='Greys')
+
+
+def visualise_transfer_function(transfer_function):
+    xs = np.arange(-2.0, 2.0, 0.01)
+    ys = transfer_function(xs)
+    plt.figure()
+    plt.plot(xs, ys)
+    plt.title("Transfer function")
 
 def show_plots():
     plt.show()
