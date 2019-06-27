@@ -1,6 +1,7 @@
 import numpy as np
-from helpers import create_transfer_function
+from helpers import create_transfer_function, visualise_transfer_function
 from layers import StandardLayer, OutputPyramidalLayer
+import pickle
 
 
 class DynamicsSimulator:
@@ -18,6 +19,7 @@ class DynamicsSimulator:
         self.nudging_conductance = self.parameters['nudging_conductance']
         self.background_noise_std = self.parameters['background_noise_std']
         self.transfer_function = create_transfer_function(self.parameters['transfer_function'])
+        #visualise_transfer_function(self.transfer_function)
 
         self.plastic_feedforward_weights = self.parameters['plastic_feedforward_weights']
         self.plastic_predict_weights = self.parameters['plastic_predict_weights']
@@ -25,12 +27,17 @@ class DynamicsSimulator:
         self.plastic_feedback_weights = self.parameters['plastic_feedback_weights']
 
         self.step_size = self.parameters['ms_per_time_step']
+        if self.parameters['weight_time_constant_ms'] == 0:
+            self.weight_update_factor = 1
+        else:
+            self.weight_update_factor = 1 - np.exp(-1/(self.parameters['weight_time_constant_ms'] / self.parameters['ms_per_time_step']))
+
         self.monitors = monitors
 
     def run_simulation(self, max_iterations):
         report_interval = int(max_iterations / 10)
-        for monitor in self.monitors:
-            monitor.update(self.iter_step)
+        #for monitor in self.monitors:
+        #    monitor.update(self.iter_step)
 
         while self.iter_step < max_iterations:
             self.iter_step += 1
@@ -45,7 +52,7 @@ class DynamicsSimulator:
     def step_simulation(self):
         self.compute_updates()
         self.perform_updates()
-        self.reset_stored_updates()
+        #self.reset_stored_updates()
 
     def compute_updates(self):
         inputs = self.input_output_stream.get_inputs(self.iter_step)
@@ -62,7 +69,7 @@ class DynamicsSimulator:
                 if layer_index == 0:
                     prev_layer_pyramidal_somatic_potentials = inputs
                 elif layer_index < len(layers) - 1:
-                    prev_layer = layers[layer_index - 1]
+                    _, prev_layer = layers[layer_index - 1]
                     prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
                 else:
                     raise Exception('Invalid layer specification! StandardLayer cannot be used as the final layer.')
@@ -228,6 +235,9 @@ class DynamicsSimulator:
         interneuron_firing_rates = self.transfer_function(interneuron_somatic_potentials)
         new_pyramidal_apical_potentials += np.dot(interneuron_weights, interneuron_firing_rates)
 
+        #print(np.dot(feedback_weights, next_pyramidal_firing_rates))
+        #print(np.dot(interneuron_weights, interneuron_firing_rates).shape)
+
         return new_pyramidal_apical_potentials
 
     def compute_interneuron_basal_potential_updates(self, layer):
@@ -334,9 +344,8 @@ class DynamicsSimulator:
 
     def perform_updates(self):
         layers = self.model.get_layers()
-
         for layer_index, (_, layer) in enumerate(layers):
-            layer.perform_update(self.step_size)
+            layer.perform_update(self.step_size, self.weight_update_factor)
 
     def reset_stored_updates(self):
         layers = self.model.get_layers()
@@ -344,6 +353,9 @@ class DynamicsSimulator:
         for layer_index, (_, layer) in enumerate(layers):
             layer.reset_stored_updates()
 
+    def save_model(self, name):
+        output = open('saved_models/' + name + '.pkl', 'wb')
+        pickle.dump(self.model, output)
 
 
 

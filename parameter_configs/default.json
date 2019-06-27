@@ -24,10 +24,10 @@
     "layer_sizes": [50, 10]
   },
 
-  "feedforward_learning_rate": 0.0011875,
-  "predict_learning_rate": 0.0011875,
-  "interneuron_learning_rate": 0.0002375,
-  "feedback_learning_rate": 0.0011875,
+  "feedforward_learning_rates": [0.0011875],
+  "predict_learning_rates": [0.0011875],
+  "interneuron_learning_rates": [0.0002375],
+  "feedback_learning_rates": [0.0011875],
 
   "plastic_feedforward_weights": true,
   "plastic_predict_weights": true,

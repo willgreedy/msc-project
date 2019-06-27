@@ -1,16 +1,22 @@
 import numpy as np
 from abc import ABC
 import matplotlib.pyplot as plt
+import pickle
 
 
 def create_transfer_function(config):
     type = config['type']
     if type == 'soft-rectify':
-        gamma = config['gamma'] if 'gamma' in config else 1
-        beta = config['beta'] if 'beta' in config else 1
-        theta = config['theta'] if 'theta' in config else 0
+        gamma = config['gamma'] if 'gamma' in config else 1.0
+        beta = config['beta'] if 'beta' in config else 1.0
+        theta = config['theta'] if 'theta' in config else 0.0
 
-        return lambda u: gamma * np.log(1 + np.exp(beta * (u - theta)))
+        def transfer_fun(u):
+            result = beta * (u - theta)
+            result[result < 500.0] = gamma * np.log(1.0 + np.exp(result[result<500.0]))
+            return result
+
+        return transfer_fun
     else:
         raise Exception("Invalid transfer function: {}".format(type))
 
@@ -38,14 +44,20 @@ def visualise_MNIST(image):
 
 
 def visualise_transfer_function(transfer_function):
-    xs = np.arange(-2.0, 2.0, 0.01)
+    xs = np.arange(-100.0, 100.0, 0.01)
     ys = transfer_function(xs)
     plt.figure()
     plt.plot(xs, ys)
     plt.title("Transfer function")
 
+
 def show_plots():
     plt.show()
+
+
+def load_model(name):
+    pkl_file = open('saved_models/' + name + '.pkl', 'rb')
+    return pickle.load(pkl_file)
 
 
 class Initialiser(ABC):

@@ -3,6 +3,7 @@ import numpy as np
 
 from helpers import create_transfer_function
 
+
 class Monitor(ABC):
     def __init__(self, var_name, update_frequency=1):
         self.var_name = var_name
@@ -35,6 +36,23 @@ class GenericMonitor(Monitor):
 
         self.iter_numbers += [iter_number]
         self.values += [value]
+
+
+class ExponentialAverageMonitor(Monitor):
+    def __init__(self, var_name, time_constant_iters, update_frequency=1):
+        super().__init__(var_name, update_frequency)
+        self.decay_factor = np.exp(-1 / time_constant_iters)
+
+    def get_values(self):
+        if len(self.values) == 0 or len(self.values) == 1:
+            return self.values
+
+        averaged_values = [self.values[0]]
+        curr_val = self.values[0]
+        for value in self.values[1:]:
+            curr_val = curr_val * self.decay_factor + value * (1 - self.decay_factor)
+            averaged_values += self.values
+
 
 
 class MonitorBuilder:
@@ -166,11 +184,38 @@ class MonitorBuilder:
             pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
             pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
 
-            soma_rate = transfer_function(pyramidal_somatic_potentials[cell_location])
-            basal_rate = transfer_function(scaling_factor * pyramidal_basal_potentials[cell_location])
+            soma_rate = transfer_function(pyramidal_somatic_potentials[cell_location, None])
+            basal_rate = transfer_function(scaling_factor * pyramidal_basal_potentials[cell_location, None])
 
             value = soma_rate - basal_rate
             return value
 
         var_name = 'basal_soma_rate_diff'
         return GenericMonitor(var_name, get_basal_soma_rate_diff, update_frequency)
+
+    @staticmethod
+    def create_weight_angle_monitor(model, layer_num, weight_type, update_frequency):
+        layers = model.get_layers()
+        _, layer = layers[layer_num]
+
+        if weight_type == 'feedforward_feedback_angle':
+            _, next_layer = layers[layer_num + 1]
+            def get_angle(num_iters):
+                feedforward_weights = next_layer.get_feedforward_weights()
+                feedback_weights = layer.get_feedback_weights()
+                angle = np.degrees(np.arccos(np.dot(feedforward_weights.flatten(), feedback_weights.flatten()) /
+                                                    (np.linalg.norm(feedforward_weights) *
+                                                     np.linalg.norm(feedback_weights))))
+                return angle
+        elif weight_type == 'feedforward_predict_angle':
+            def get_angle(num_iters):
+                feedforward_weights = layer.get_feedforward_weights()
+                predict_weights = layer.get_predict_weights()
+                angle = np.dot(feedforward_weights.flatten(), predict_weights.flatten()) /\
+                        (np.linalg.norm(feedforward_weights) * np.linalg.norm(predict_weights))
+                return angle
+        else:
+            raise Exception('Invalid weight type: {}'.format(weight_type))
+
+        var_name = weight_type
+        return GenericMonitor(var_name, get_angle, update_frequency)
