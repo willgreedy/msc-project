@@ -1,6 +1,6 @@
 {
   "dynamics":{
-    "type": "standard",
+    "type": "simplified",
     "ms_per_time_step": 0.1,
     "weight_time_constant_ms": 30,
 
@@ -10,14 +10,15 @@
     "apical_conductance": 0.8,
     "basal_conductance": 1.0,
     "dendritic_conductance": 1.0,
-    "nudging_conductance": 0.8,
+
+    "mixing_factors": [0.3, 0.3, 0.1],
 
     "background_noise_std": 0.1,
 
     "plastic_feedforward_weights": true,
     "plastic_predict_weights": true,
     "plastic_interneuron_weights": true,
-    "plastic_feedback_weights": true,
+    "plastic_feedback_weights": false,
 
     "transfer_function": {
       "type": "soft-rectify"
@@ -35,9 +36,9 @@
     "layer_sizes": [50, 10]
   },
 
-  "feedforward_learning_rates": [0.0011875],
-  "predict_learning_rates": [0.0011875],
-  "interneuron_learning_rates": [0.0002375],
-  "feedback_learning_rates": [0.0011875]
+  "feedforward_learning_rates": [0.1111, 0.03333, 0.01],
+  "predict_learning_rates": [0.06666, 0.02],
+  "interneuron_learning_rates": [0.3333, 0.1],
+  "feedback_learning_rates": [0.1111, 0.03333]
 
 }

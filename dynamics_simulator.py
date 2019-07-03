@@ -1,43 +1,29 @@
+from abc import ABC, abstractmethod
+
 import numpy as np
-from helpers import create_transfer_function, visualise_transfer_function
+from helpers import create_transfer_function, visualise_transfer_function, save_model
 from layers import StandardLayer, OutputPyramidalLayer
-import pickle
 
 
-class DynamicsSimulator:
-    def __init__(self, model, input_output_stream, parameters, monitors=list()):
+class DynamicsSimulator(ABC):
+    def __init__(self, model, input_output_stream, dynamics_parameters, monitors=list()):
         self.model = model
         self.input_output_stream = input_output_stream
         self.iter_step = 0
+        self.dynamics_parameters = dynamics_parameters
+        self.background_noise_std = dynamics_parameters['background_noise_std']
+        self.transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
+        # visualise_transfer_function(self.transfer_function)
 
-        self.parameters = parameters
-        self.resting_potential = self.parameters['resting_potential']
-        self.leak_conductance = self.parameters['leak_conductance']
-        self.apical_conductance = self.parameters['apical_conductance']
-        self.basal_conductance = self.parameters['basal_conductance']
-        self.dendritic_conductance = self.parameters['dendritic_conductance']
-        self.nudging_conductance = self.parameters['nudging_conductance']
-        self.background_noise_std = self.parameters['background_noise_std']
-        self.transfer_function = create_transfer_function(self.parameters['transfer_function'])
-        #visualise_transfer_function(self.transfer_function)
-
-        self.plastic_feedforward_weights = self.parameters['plastic_feedforward_weights']
-        self.plastic_predict_weights = self.parameters['plastic_predict_weights']
-        self.plastic_interneuron_weights = self.parameters['plastic_interneuron_weights']
-        self.plastic_feedback_weights = self.parameters['plastic_feedback_weights']
-
-        self.step_size = self.parameters['ms_per_time_step']
-        if self.parameters['weight_time_constant_ms'] == 0:
-            self.weight_update_factor = 1
-        else:
-            self.weight_update_factor = 1 - np.exp(-1/(self.parameters['weight_time_constant_ms'] / self.parameters['ms_per_time_step']))
+        self.plastic_feedforward_weights = dynamics_parameters['plastic_feedforward_weights']
+        self.plastic_predict_weights = dynamics_parameters['plastic_predict_weights']
+        self.plastic_interneuron_weights = dynamics_parameters['plastic_interneuron_weights']
+        self.plastic_feedback_weights = dynamics_parameters['plastic_feedback_weights']
 
         self.monitors = monitors
 
     def run_simulation(self, max_iterations):
         report_interval = int(max_iterations / 10)
-        #for monitor in self.monitors:
-        #    monitor.update(self.iter_step)
 
         while self.iter_step < max_iterations:
             self.iter_step += 1
@@ -49,22 +35,43 @@ class DynamicsSimulator:
                 if self.iter_step % monitor.get_update_frequency() == 0:
                     monitor.update(self.iter_step)
 
+    def save_model(self, name):
+        save_model(name, self.model)
+
+    @abstractmethod
+    def step_simulation(self):
+        pass
+
+
+class StandardDynamicsSimulator(DynamicsSimulator):
+    def __init__(self, model, input_output_stream, dynamics_parameters, monitors=list()):
+        super().__init__(model, input_output_stream, dynamics_parameters, monitors)
+
+        self.resting_potential = dynamics_parameters['resting_potential']
+        self.leak_conductance = dynamics_parameters['leak_conductance']
+        self.apical_conductance = dynamics_parameters['apical_conductance']
+        self.basal_conductance = dynamics_parameters['basal_conductance']
+        self.dendritic_conductance = dynamics_parameters['dendritic_conductance']
+        self.nudging_conductance = dynamics_parameters['nudging_conductance']
+
+        self.step_size = dynamics_parameters['ms_per_time_step']
+        if dynamics_parameters['weight_time_constant_ms'] == 0:
+            self.weight_update_factor = 1
+        else:
+            self.weight_update_factor = 1 - np.exp(
+                -1 / (dynamics_parameters['weight_time_constant_ms'] / dynamics_parameters['ms_per_time_step']))
+
     def step_simulation(self):
         self.compute_updates()
         self.perform_updates()
-        #self.reset_stored_updates()
 
     def compute_updates(self):
         inputs = self.input_output_stream.get_inputs(self.iter_step)
-        #inputs = np.zeros((self.model.input_size, 1))
-
         output_targets = self.input_output_stream.get_output_targets(self.iter_step)
-        #output_targets = np.zeros((self.model.output_size, 1))
 
         layers = self.model.get_layers()
 
         for layer_index, (_, layer) in enumerate(layers):
-
             if isinstance(layer, StandardLayer):
                 if layer_index == 0:
                     prev_layer_pyramidal_somatic_potentials = inputs
@@ -83,12 +90,16 @@ class DynamicsSimulator:
 
             elif isinstance(layer, OutputPyramidalLayer):
                 if layer_index > 0:
-
                     _, prev_layer = layers[layer_index - 1]
                     prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
                     self.compute_output_layer_updates(layer, prev_layer_pyramidal_somatic_potentials, output_targets)
                 else:
                     raise Exception('Invalid layer specification! OutputPyramidalLayer cannot be used as the first layer.')
+
+    def perform_updates(self):
+        layers = self.model.get_layers()
+        for layer_index, (_, layer) in enumerate(layers):
+            layer.perform_update(self.step_size, self.weight_update_factor)
 
     def compute_standard_layer_updates(self, layer, prev_layer_pyramidal_somatic_potentials,
                                        next_layer_pyramidal_somatic_potentials):
@@ -101,6 +112,7 @@ class DynamicsSimulator:
         # Compute basal and apical compartment updates
         new_pyramidal_basal_potentials = self.compute_pyramidal_basal_potential_updates(layer,
                                                                                         prev_layer_pyramidal_somatic_potentials)
+
         new_pyramidal_apical_potentials = self.compute_pyramidal_apical_potential_updates(layer,
                                                                                          next_layer_pyramidal_somatic_potentials)
         new_interneuron_basal_potentials = self.compute_interneuron_basal_potential_updates(layer)
@@ -181,12 +193,18 @@ class DynamicsSimulator:
         background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
                                             size=(layer.num_neurons, 1))
 
-        change_pyramidal_somatic_potentials = -self.leak_conductance * pyramidal_somatic_potentials + \
+        if output_targets is not None:
+            change_pyramidal_somatic_potentials = -self.leak_conductance * pyramidal_somatic_potentials + \
                                               self.basal_conductance * (pyramidal_basal_potentials -
                                                                         pyramidal_somatic_potentials) +\
                                               self.nudging_conductance * (output_targets -
                                                                           pyramidal_somatic_potentials) +\
                                               background_noise
+        else:
+            change_pyramidal_somatic_potentials = -self.leak_conductance * pyramidal_somatic_potentials + \
+                                                  self.basal_conductance * (pyramidal_basal_potentials -
+                                                                            pyramidal_somatic_potentials) + \
+                                                  background_noise
 
         #print("Target: {}, Soma {}, Diff {}".format(output_targets[0, 0],
         #                                            pyramidal_somatic_potentials[0,0],
@@ -339,26 +357,88 @@ class DynamicsSimulator:
                                       np.dot((self.transfer_function(pyramidal_somatic_potentials) -
                                               self.transfer_function(top_down_inputs)),
                                              next_pyramidal_firing_rates.T)
-
         return change_feedback_weights
 
+
+class SimplifiedDynamicsSimulator(DynamicsSimulator):
+    def __init__(self, model, input_output_stream, dynamics_parameters, monitors=list()):
+        super().__init__(model, input_output_stream, dynamics_parameters, monitors)
+
+        self.somatic_mixing_factors = dynamics_parameters['somatic_mixing_factors']
+        self.interneuron_mixing_factors = dynamics_parameters['interneuron_mixing_factors']
+
+    def step_simulation(self):
+        self.perform_updates()
+
     def perform_updates(self):
-        layers = self.model.get_layers()
-        for layer_index, (_, layer) in enumerate(layers):
-            layer.perform_update(self.step_size, self.weight_update_factor)
-
-    def reset_stored_updates(self):
+        inputs = self.input_output_stream.get_inputs(0)
+        output_targets = self.input_output_stream.get_output_targets(0)
         layers = self.model.get_layers()
 
         for layer_index, (_, layer) in enumerate(layers):
-            layer.reset_stored_updates()
+            if isinstance(layer, StandardLayer):
+                if layer_index == 0:
+                    prev_layer_pyramidal_somatic_potentials = inputs
+                elif layer_index < len(layers) - 1:
+                    _, prev_layer = layers[layer_index - 1]
+                    prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
+                else:
+                    raise Exception('Invalid layer specification! StandardLayer cannot be used as the final layer.')
 
-    def save_model(self, name):
-        output = open('saved_models/' + name + '.pkl', 'wb')
-        pickle.dump(self.model, output)
+                pyramidal_basal_potentials = self.compute_pyramidal_basal_potential_updates(layer, inputs, prev_layer_pyramidal_somatic_potentials)
+                pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
+                pyramidal_somatic_potentials_change = pyramidal_basal_potentials - pyramidal_somatic_potentials
+                layer.set_new_pyramidal_basal_potentials(pyramidal_basal_potentials)
+                layer.set_change_pyramidal_somatic_potentials(pyramidal_somatic_potentials_change)
+            elif isinstance(layer, OutputPyramidalLayer):
+                _, prev_layer = layers[layer_index - 1]
+                prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
+                self.compute_output_pyramidal_somatic_potential_updates(layer, prev_layer_pyramidal_somatic_potentials, output_targets)
+            else:
+                raise Exception('Invalid layer specification! OutputPyramidalLayer cannot be used as the first layer.')
 
+        # Visit reverse order from k
+        for i, (_, layer) in enumerate(layers[:-1:-1]):
+            layer_index = len(layers) - 1 - i
+            print("Layer index: {}".format(layer_index))
+            if isinstance(layer, StandardLayer):
+                _, next_layer = layers[layer_index + 1]
+                if layer_index < len(layers) - 1:
+                    next_layer_pyramidal_somatic_potentials = next_layer.get_pyramidal_somatic_potentials()
+                    self.compute_standard_pyramidal_somatic_potential_updates(layer, self.somatic_mixing_factors[layer_index])
+                    self.compute_interneuron_basal_potential_updates(layer)
+                    self.compute_interneuron_somatic_potential_updates(layer, next_layer_pyramidal_somatic_potentials)
+                    self.compute_pyramidal_apical_potential_updates(layer, next_layer_pyramidal_somatic_potentials)
+                else:
+                    raise Exception('Invalid layer specification! StandardLayer cannot be used as the final layer.')
+            elif isinstance(layer, OutputPyramidalLayer):
+                raise Exception(
+                    'Invalid layer specification! OutputPyramidalLayer cannot be used as anything other than the last layer.')
 
+    def compute_pyramidal_basal_potential_updates(self, layer, prev_layer_pyramidal_somatic_potentials):
+        feedforward_weights = layer.get_feedforward_weights()
 
+        prev_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
+        new_pyramidal_basal_potentials = np.dot(feedforward_weights, prev_pyramidal_firing_rates)
+
+        return new_pyramidal_basal_potentials
+
+    def compute_standard_pyramidal_somatic_potential_updates(self, layer, mixing_factor):
+        pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
+        pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
+        pyramidal_apical_potentials = layer.get_pyramidal_apical_potentials()
+
+    def compute_output_pyramidal_somatic_potential_updates(self, layer):
+        pass
+
+    def compute_pyramidal_apical_potential_updates(self, layer, next_layer_pyramidal_somatic_potentials):
+        pass
+
+    def compute_interneuron_basal_potential_updates(self, layer):
+        pass
+
+    def compute_interneuron_somatic_potential_updates(self, layer, next_layer_pyramidal_somatic_potentials):
+        pass
 
 
 

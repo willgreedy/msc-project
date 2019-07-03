@@ -35,6 +35,7 @@ def create_plot(monitor):
     print("Creating plot with {} values.".format(len(values)))
     plt.figure()
     plt.plot(iter_numbers, values)
+    plt.xlim(iter_numbers[0], iter_numbers[-1])
     plt.title(monitor.get_var_name())
 
 
@@ -55,9 +56,27 @@ def show_plots():
     plt.show()
 
 
+def compute_non_linear_transform(input_sequence, transfer_function, feedforward_weights_list=list()):
+    curr_values = input_sequence
+    for feedforward_weights in feedforward_weights_list:
+        curr_values = transfer_function(curr_values)
+        print("Transfer: {}".format(curr_values))
+        curr_values = np.matmul(curr_values, feedforward_weights)
+        print("Linear: {}".format(curr_values))
+
+    #curr_values = np.matmul(curr_values, feedforward_weights_list[-1])
+    #print("Linear: {}".format(curr_values))
+    return curr_values
+
+
 def load_model(name):
     pkl_file = open('saved_models/' + name + '.pkl', 'rb')
     return pickle.load(pkl_file)
+
+
+def save_model(name, model):
+    output = open('saved_models/' + name + '.pkl', 'wb')
+    pickle.dump(model, output)
 
 
 class Initialiser(ABC):
@@ -72,5 +91,15 @@ class UniformInitialiser(Initialiser):
         self.upper_bound = upper_bound
 
     def sample(self, shape):
-        return np.random.uniform(self.lower_bound, self.upper_bound, shape)
+        res = np.random.uniform(self.lower_bound, self.upper_bound, shape)
+        print("Result: {}".format(res))
+        return res
 
+
+class ConstantInitialiser(Initialiser):
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+
+    def sample(self, shape):
+        return np.ones(shape) * self.value

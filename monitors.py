@@ -39,20 +39,25 @@ class GenericMonitor(Monitor):
 
 
 class ExponentialAverageMonitor(Monitor):
-    def __init__(self, var_name, time_constant_iters, update_frequency=1):
-        super().__init__(var_name, update_frequency)
+    def __init__(self, monitor, time_constant_iters):
+        super().__init__(monitor.var_name, monitor.update_frequency)
+        self.monitor = monitor
         self.decay_factor = np.exp(-1 / time_constant_iters)
 
     def get_values(self):
-        if len(self.values) == 0 or len(self.values) == 1:
-            return self.values
+        iter_numbers, values = self.monitor.get_values()
+        if len(values) == 0 or len(values) == 1:
+            return iter_numbers, values
 
-        averaged_values = [self.values[0]]
-        curr_val = self.values[0]
-        for value in self.values[1:]:
+        averaged_values = [values[0]]
+        curr_val = values[0]
+        for value in values[1:]:
             curr_val = curr_val * self.decay_factor + value * (1 - self.decay_factor)
-            averaged_values += self.values
+            averaged_values += [curr_val]
+        return iter_numbers, averaged_values
 
+    def update(self, iter_number):
+        self.monitor.update(iter_number)
 
 
 class MonitorBuilder:
@@ -72,7 +77,10 @@ class MonitorBuilder:
         elif data_type == "target":
             def get_value(iter_number):
                 output_targets = data_stream.get_output_targets(iter_number)
-                return float(output_targets[data_location])
+                if output_targets is not None:
+                    return float(output_targets[data_location])
+                else:
+                    return None
         else:
             raise Exception("Fatal Error")
 
@@ -163,20 +171,21 @@ class MonitorBuilder:
             feedforward_weights = feedforward_layer.get_feedforward_weights()
             predict_weights = predict_layer.get_predict_weights()
             value = np.sum((feedforward_weights - predict_weights) ** 2)
-            return value
+
+            return float(value)
 
         var_name = 'feedforward_predict_weight_diff'
         return GenericMonitor(var_name, get_feedforward_predict_weights_diff, update_frequency)
 
     @staticmethod
-    def create_basal_soma_rate_diff_monitor(model, layer_num, cell_location, config, update_frequency):
+    def create_basal_soma_rate_diff_monitor(model, layer_num, cell_location, dynamics_parameters, update_frequency):
         layers = model.get_layers()
         _, layer = layers[layer_num]
 
-        leak_conductance = config['leak_conductance']
-        apical_conductance = config['apical_conductance']
-        basal_conductance = config['basal_conductance']
-        transfer_function = create_transfer_function(config['transfer_function'])
+        leak_conductance = dynamics_parameters['leak_conductance']
+        apical_conductance = dynamics_parameters['apical_conductance']
+        basal_conductance = dynamics_parameters['basal_conductance']
+        transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
 
         scaling_factor = basal_conductance / (leak_conductance + basal_conductance + apical_conductance)
 
@@ -188,7 +197,7 @@ class MonitorBuilder:
             basal_rate = transfer_function(scaling_factor * pyramidal_basal_potentials[cell_location, None])
 
             value = soma_rate - basal_rate
-            return value
+            return float(value)
 
         var_name = 'basal_soma_rate_diff'
         return GenericMonitor(var_name, get_basal_soma_rate_diff, update_frequency)
@@ -197,25 +206,62 @@ class MonitorBuilder:
     def create_weight_angle_monitor(model, layer_num, weight_type, update_frequency):
         layers = model.get_layers()
         _, layer = layers[layer_num]
+        _, next_layer = layers[layer_num + 1]
 
         if weight_type == 'feedforward_feedback_angle':
             _, next_layer = layers[layer_num + 1]
             def get_angle(num_iters):
                 feedforward_weights = next_layer.get_feedforward_weights()
-                feedback_weights = layer.get_feedback_weights()
-                angle = np.degrees(np.arccos(np.dot(feedforward_weights.flatten(), feedback_weights.flatten()) /
-                                                    (np.linalg.norm(feedforward_weights) *
-                                                     np.linalg.norm(feedback_weights))))
-                return angle
+                feedback_weights = layer.get_feedback_weights().T
+                scaled_dot_product = np.dot(feedforward_weights.flatten() / np.linalg.norm(feedforward_weights),
+                                            feedback_weights.flatten() / np.linalg.norm(feedback_weights))
+                if np.abs(scaled_dot_product) >= 1.0:
+                    angle = 0.0
+                else:
+                    angle = np.degrees(np.arccos(scaled_dot_product))
+                return float(angle)
         elif weight_type == 'feedforward_predict_angle':
             def get_angle(num_iters):
-                feedforward_weights = layer.get_feedforward_weights()
+                feedforward_weights = next_layer.get_feedforward_weights()
                 predict_weights = layer.get_predict_weights()
-                angle = np.dot(feedforward_weights.flatten(), predict_weights.flatten()) /\
-                        (np.linalg.norm(feedforward_weights) * np.linalg.norm(predict_weights))
-                return angle
+                scaled_dot_product = np.dot(feedforward_weights.flatten() / np.linalg.norm(feedforward_weights),
+                                            predict_weights.flatten() / np.linalg.norm(predict_weights))
+                if np.abs(scaled_dot_product) >= 1.0:
+                    angle = 0.0
+                else:
+                    angle = np.degrees(np.arccos(scaled_dot_product))
+                return float(angle)
+        elif weight_type == 'feedback_interneuron_angle':
+            def get_angle(num_iters):
+                feedback_weights = layer.get_feedback_weights()
+                interneuron_weights = layer.get_interneuron_weights()
+                scaled_dot_product = np.dot(feedback_weights.flatten() / np.linalg.norm(feedback_weights),
+                                                interneuron_weights.flatten() / np.linalg.norm(interneuron_weights))
+                if np.abs(scaled_dot_product) >= 1.0:
+                    angle = 0.0
+                else:
+                    angle = np.degrees(np.arccos(scaled_dot_product))
+                return float(angle)
         else:
             raise Exception('Invalid weight type: {}'.format(weight_type))
 
         var_name = weight_type
         return GenericMonitor(var_name, get_angle, update_frequency)
+
+    @staticmethod
+    def create_error_monitor(model, data_stream, error_type, update_frequency):
+        _, last_layer = model.get_layers()[-1]
+        if error_type == 'sum_squares_error':
+            def get_error(num_iters):
+                target = data_stream.get(num_iters)
+                if target is None:
+                    return None
+                else:
+                    output = last_layer.get_pyramidal_somatic_potentials()
+                    error = np.sum((target - output)**2)
+                    return float(error)
+        else:
+            raise Exception('Invalid error type {}'.format(error_type))
+
+        var_name = error_type
+        return GenericMonitor(var_name, get_error, update_frequency)

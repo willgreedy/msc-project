@@ -17,7 +17,12 @@ class Stream(ABC):
 
 
 class CompositeStream(Stream):
-    def __init__(self, shape, stream_list, start_indices):
+    def __init__(self, stream_list, start_indices):
+        shape = stream_list[0].shape
+        for stream in stream_list[1:]:
+            if stream.shape != shape:
+                raise Exception("All streams in list must have the same shape.")
+
         super().__init__(shape)
         if len(stream_list) != len(start_indices):
             raise Exception("List of streams and indices are not the same length.")
@@ -33,9 +38,10 @@ class CompositeStream(Stream):
         self.start_indices = start_indices
 
     def get(self, iteration_num):
-        for i, start_index in enumerate(self.start_indices):
+        for i, start_index in enumerate(self.start_indices[::-1]):
             if iteration_num >= start_index:
-                return self.stream_list[i].get(iteration_num - start_index)
+                return self.stream_list[-(i+1)].get(iteration_num - start_index)
+        raise Exception("Stream index out of bounds: {}".format(iteration_num))
 
 
 class SmoothStream(Stream):
@@ -55,6 +61,14 @@ class SmoothStream(Stream):
                 self.smoothed_values += [curr_value]
 
         return self.smoothed_values[iteration_num]
+
+
+class NoneStream(Stream):
+    def __init__(self, shape):
+        super().__init__(shape)
+
+    def get(self, iteration_num):
+        return None
 
 
 class ConstantStream(Stream):

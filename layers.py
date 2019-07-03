@@ -18,15 +18,11 @@ class Layer(ABC):
 
     def perform_update(self, step_size, weight_update_factor=1.0):
         self.pyramidal_somatic_potentials += step_size * self.change_pyramidal_somatic_potentials
+        #self.pyramidal_somatic_potentials = self.new_pyramidal_basal_potentials
         self.pyramidal_basal_potentials = self.new_pyramidal_basal_potentials
 
         self.feedforward_weights += step_size * weight_update_factor * self.change_feedforward_weights
         self.change_feedforward_weights -= (weight_update_factor * self.change_feedforward_weights)
-
-    def reset_stored_updates(self):
-        self.change_pyramidal_somatic_potentials = None
-        self.new_pyramidal_basal_potentials = None
-        self.change_feedforward_weights = None
 
     def get_pyramidal_somatic_potentials(self):
         return self.pyramidal_somatic_potentials
@@ -39,6 +35,9 @@ class Layer(ABC):
 
     def get_feedforward_learning_rate(self):
         return self.feedforward_learning_rate
+
+    def set_feedforward_learning_rate(self, feedforward_learning_rate):
+        self.feedforward_learning_rate = feedforward_learning_rate
 
     def set_change_pyramidal_somatic_potentials(self, change_pyramidal_somatic_potentials):
         self.change_pyramidal_somatic_potentials = change_pyramidal_somatic_potentials
@@ -95,16 +94,9 @@ class StandardLayer(Layer):
         self.change_interneuron_weights -= weight_update_factor * self.change_interneuron_weights
 
         self.feedback_weights += step_size * self.change_feedback_weights
+        #print("FF {}".format(self.feedforward_weights[0][0]))
+        #print("FB {}".format(self.feedback_weights[0][0]))
         self.change_feedback_weights -= self.change_feedback_weights
-
-    def reset_stored_updates(self):
-        self.change_interneuron_somatic_potentials = None
-        self.new_pyramidal_apical_potentials = None
-        self.new_interneuron_basal_potentials = None
-
-        self.change_predict_weights = None
-        self.change_interneuron_weights = None
-        self.change_feedback_weights = None
 
     def get_pyramidal_apical_potentials(self):
         return self.pyramidal_apical_potentials
@@ -133,14 +125,20 @@ class StandardLayer(Layer):
     def get_feedback_learning_rate(self):
         return self.feedback_learning_rate
 
+    def set_predict_learning_rate(self, predict_learning_rate):
+        self.predict_learning_rate = predict_learning_rate
+
+    def set_interneuron_learning_rate(self, interneuron_learning_rate):
+        self.interneuron_learning_rate = interneuron_learning_rate
+
+    def set_feedback_learning_rate(self, feedback_learning_rate):
+        self.feedback_learning_rate = feedback_learning_rate
+
     def set_change_pyramidal_somatic_potentials(self, change_pyramidal_somatic_potentials):
         self.change_pyramidal_somatic_potentials = change_pyramidal_somatic_potentials
 
     def set_change_interneuron_somatic_potentials(self, change_interneuron_somatic_potentials):
         self.change_interneuron_somatic_potentials = change_interneuron_somatic_potentials
-
-    def set_new_pyramidal_basal_potentials(self, new_pyramidal_basal_potentials):
-        self.new_pyramidal_basal_potentials = new_pyramidal_basal_potentials
 
     def set_new_pyramidal_apical_potentials(self, new_pyramidal_apical_potentials):
         self.new_pyramidal_apical_potentials = new_pyramidal_apical_potentials
