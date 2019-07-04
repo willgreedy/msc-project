@@ -21,9 +21,10 @@ class DynamicsSimulator(ABC):
         self.plastic_feedback_weights = dynamics_parameters['plastic_feedback_weights']
 
         self.monitors = monitors
+        self.testing_phase = False
 
     def run_simulation(self, max_iterations):
-        report_interval = int(max_iterations / 10)
+        report_interval = int((max_iterations - self.iter_step) / 10)
 
         while self.iter_step < max_iterations:
             self.iter_step += 1
@@ -34,6 +35,9 @@ class DynamicsSimulator(ABC):
             for monitor in self.monitors:
                 if self.iter_step % monitor.get_update_frequency() == 0:
                     monitor.update(self.iter_step)
+
+    def set_testing_phase(self, testing_phase):
+        self.testing_phase = testing_phase
 
     def save_model(self, name):
         save_model(name, self.model)
@@ -193,7 +197,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
                                             size=(layer.num_neurons, 1))
 
-        if output_targets is not None:
+        if output_targets is not None and not self.testing_phase:
             change_pyramidal_somatic_potentials = -self.leak_conductance * pyramidal_somatic_potentials + \
                                               self.basal_conductance * (pyramidal_basal_potentials -
                                                                         pyramidal_somatic_potentials) +\

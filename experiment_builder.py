@@ -9,7 +9,7 @@ from monitors import MonitorBuilder, ExponentialAverageMonitor
 
 
 class ExperimentBuilder:
-    def __init__(self, args, model_file=None):
+    def __init__(self, args, experiment_name, model_file=None):
         if len(args) > 0:
             config_file = args[0]
             self.config = ParameterConfig(config_file)
@@ -17,6 +17,8 @@ class ExperimentBuilder:
         else:
             print("Using default configuration.")
             self.config = ParameterConfig()
+
+        self.experiment_name = experiment_name
 
         self.network_architecture = self.config['network_architecture']
         self.input_size = self.network_architecture['input_size']
@@ -61,7 +63,7 @@ class ExperimentBuilder:
 
         self.dynamics = self.config['dynamics']
         self.monitors = []
-        self.monitor_frequency = 1
+        self.monitor_frequency = 5
 
     def add_monitors(self):
         self.monitors += [MonitorBuilder.create_feedforward_predict_weight_diff_monitor(self.model, 1, 0, update_frequency=self.monitor_frequency)]
@@ -84,7 +86,7 @@ class ExperimentBuilder:
         self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "interneuron_basal", 0, update_frequency=self.monitor_frequency)]
         self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "interneuron_soma", 0, update_frequency=self.monitor_frequency)]
 
-        self.monitors += [MonitorBuilder.create_basal_soma_rate_diff_monitor(self.model, 0, 0, self.dynamics, update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_pyramidal_basal_soma_rate_diff_monitor(self.model, 0, 0, self.dynamics, update_frequency=self.monitor_frequency)]
 
         self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 1, "pyramidal_basal", 0, update_frequency=self.monitor_frequency)]
         self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 1, "pyramidal_soma", 0, update_frequency=self.monitor_frequency)]
@@ -113,8 +115,8 @@ class ExperimentBuilder:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
     def initialise_target_network_experiment(self):
-        num_examples = 50
-        input_sequence = np.random.random((num_examples, self.input_size))
+        num_examples = 500
+        input_sequence = np.random.uniform(-1, 1, (num_examples, self.input_size))
         input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, 10000),
                                         CyclingStream((self.input_size, 1), input_sequence, 10000)],
                                        [0, 1])
@@ -123,10 +125,12 @@ class ExperimentBuilder:
         transfer_function = create_transfer_function(self.dynamics['transfer_function'])
 
         forward_weights_list = []
-        #forward_weights_list += [(np.random.random((30, 20)) * 2) - 1]
-        #forward_weights_list += [(np.random.random((20, 10)) * 2) - 1]
-        forward_weights_list += [np.load('./first_layer_feedforward_weights.npy').copy().T]
-        forward_weights_list += [np.load('./second_layer_feedforward_weights.npy').copy().T]
+        #forward_weights_list += [np.random.uniform(-1, 1, (30, 50))]
+        #forward_weights_list += [np.random.uniform(-1, 1, (50, 10))]
+        forward_weights_list += [np.load('./target_network_weights/first_layer_feedforward_weights.npy').copy()]
+        forward_weights_list += [np.load('./target_network_weights/second_layer_feedforward_weights.npy').copy()]
+        print("Layer 1 weights: {}".format(forward_weights_list[0]))
+        print("Layer 2 weights: {}".format(forward_weights_list[1]))
         output_sequence = compute_non_linear_transform(input_sequence, transfer_function, forward_weights_list)
 
         output_stream = CompositeStream([NoneStream((self.output_size, 1)),
@@ -142,7 +146,30 @@ class ExperimentBuilder:
         self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0,
                                                              update_frequency=self.monitor_frequency)]
 
-        self.monitors += [ExponentialAverageMonitor(MonitorBuilder.create_error_monitor(self.model, output_stream, 'sum_squares_error', update_frequency=self.monitor_frequency), 50000)]
+        self.monitors += [ExponentialAverageMonitor(MonitorBuilder.create_error_monitor(self.model, input_output_stream, 'sum_squares_error', update_frequency=self.monitor_frequency), 50000)]
+
+        if self.dynamics['type'] == 'standard':
+            self.dynamics_simulator = StandardDynamicsSimulator(self.model, input_output_stream, self.dynamics,
+                                                                self.monitors)
+        elif self.dynamics['type'] == 'simplified':
+            self.dynamics_simulator = SimplifiedDynamicsSimulator(self.model, input_output_stream, self.dynamics,
+                                                                  self.monitors)
+        else:
+            raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
+
+    def initialise_mnist_experiment(self):
+        input_output_stream = MNISTInputOutputStream('mnist/train_images.idx3-ubyte', 'train_labels.idx1-ubyte', 55000)
+
+        transfer_function = create_transfer_function(self.dynamics['transfer_function'])
+
+
+        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'input', 0,
+                                                             update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0,
+                                                             update_frequency=self.monitor_frequency)]
+
+        self.monitors += [ExponentialAverageMonitor(MonitorBuilder.create_error_monitor(self.model, input_output_stream, 'sum_squares_error', update_frequency=self.monitor_frequency), 50000)]
 
         if self.dynamics['type'] == 'standard':
             self.dynamics_simulator = StandardDynamicsSimulator(self.model, input_output_stream, self.dynamics,
@@ -154,27 +181,40 @@ class ExperimentBuilder:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
     def start_experiment(self):
-        num_iterations = 5000000
-        self.dynamics_simulator.run_simulation(num_iterations)
-        experiment_name = "target_network_symmetric"
-        self.dynamics_simulator.save_model(experiment_name)
-        self.plot_monitors()
+        num_epoch_iterations = 10000
+        num_epochs = 3
 
-    def plot_monitors(self):
+        for i in range(num_epochs):
+            self.dynamics_simulator.run_simulation(num_epoch_iterations * (i + 1))
+            self.plot_monitors(show=False, sub_directory='epoch_{}'.format(i + 1))
+
+        self.dynamics_simulator.set_testing_phase(True)
+        self.dynamics_simulator.run_simulation((num_epochs + 1) * num_epoch_iterations)
+        #self.dynamics_simulator.set_testing_phase(False)
+        #self.dynamics_simulator.run_simulation(num_iterations + 400000)
+        #self.dynamics_simulator.set_testing_phase(True)
+        #self.dynamics_simulator.run_simulation(num_iterations + 600000)
+
+        self.dynamics_simulator.save_model(self.experiment_name)
+        self.plot_monitors(show=True, sub_directory='test')
+
+    def plot_monitors(self, show=False, sub_directory=None):
         for monitor in self.monitors:
-            create_plot(monitor)
+            create_plot(monitor, show, save_location=self.experiment_name, sub_directory=sub_directory)
+
         show_plots()
 
 if __name__ == '__main__':
     input_args = sys.argv[1:]
-    experiment = ExperimentBuilder(input_args, "target_network_symmetric")
-    print("Layer 1 weights: {}".format(experiment.model.get_layers()[0][1].get_feedforward_weights()))
-    print("Layer 2 weights: {}".format(experiment.model.get_layers()[1][1].get_feedforward_weights()))
+    experiment = ExperimentBuilder(input_args, experiment_name='target_network',
+                                               model_file=None)
+    #print("Layer 1 weights: {}".format(experiment.model.get_layers()[0][1].get_feedforward_weights()))
+    #print("Layer 2 weights: {}".format(experiment.model.get_layers()[1][1].get_feedforward_weights()))
     experiment.add_monitors()
     experiment.initialise_target_network_experiment()
 
-    import atexit
-    atexit.register(experiment.plot_monitors)
+    #import atexit
+    #atexit.register(experiment.plot_monitors)
     experiment.start_experiment()
 
 

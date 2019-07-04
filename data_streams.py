@@ -105,13 +105,13 @@ class CyclingStream(Stream):
 
 
 class DataStream(Stream):
-    def __init__(self, data, num_iterations):
+    def __init__(self, data, num_examples):
         self.data = data
         super().__init__((len(data), 1))
-        self.num_iterations = num_iterations
+        self.num_examples = num_examples
 
     def get(self, iteration_num):
-        curr_index = int(iteration_num / self.num_iterations) % len(self.data)
+        curr_index = int(iteration_num / self.num_examples) % len(self.data)
         return self.data[curr_index]
 
 
@@ -128,15 +128,17 @@ class InputOutputStream:
 
 
 class MNISTInputOutputStream(InputOutputStream):
-    def __init__(self, images_path, labels_path, num_iterations):
+    def __init__(self, images_path, labels_path, num_examples):
         images, labels = loadlocal_mnist(images_path=images_path, labels_path=labels_path)
 
         images = images / 255.0
 
         labels = labels.reshape(-1)
         one_hot_labels = np.eye(10)[labels]
+        # Re-scale to range {0.1, 0.8}
+        one_hot_labels = one_hot_labels * 0.7 + 0.1
 
-        input_stream = DataStream(images, num_iterations)
-        output_target_stream = DataStream(one_hot_labels, num_iterations)
+        input_stream = DataStream(images, num_examples)
+        output_target_stream = DataStream(one_hot_labels, num_examples)
         super().__init__(input_stream, output_target_stream)
 

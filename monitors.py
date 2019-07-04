@@ -5,8 +5,9 @@ from helpers import create_transfer_function
 
 
 class Monitor(ABC):
-    def __init__(self, var_name, update_frequency=1):
+    def __init__(self, var_name, plot_range=None, update_frequency=1):
         self.var_name = var_name
+        self.plot_range = plot_range
         self.update_frequency = update_frequency
 
         self.iter_numbers = []
@@ -14,6 +15,9 @@ class Monitor(ABC):
 
     def get_var_name(self):
         return self.var_name
+
+    def get_plot_range(self):
+        return self.plot_range
 
     def get_values(self):
         return self.iter_numbers, self.values
@@ -27,8 +31,8 @@ class Monitor(ABC):
 
 
 class GenericMonitor(Monitor):
-    def __init__(self, var_name, monitor_function, update_frequency=1):
-        super().__init__(var_name, update_frequency)
+    def __init__(self, var_name, monitor_function, plot_range=None, update_frequency=1):
+        super().__init__(var_name, plot_range, update_frequency)
         self.monitor_function = monitor_function
 
     def update(self, iter_number):
@@ -40,9 +44,9 @@ class GenericMonitor(Monitor):
 
 class ExponentialAverageMonitor(Monitor):
     def __init__(self, monitor, time_constant_iters):
-        super().__init__(monitor.var_name, monitor.update_frequency)
+        super().__init__(monitor.var_name, update_frequency=monitor.update_frequency)
         self.monitor = monitor
-        self.decay_factor = np.exp(-1 / time_constant_iters)
+        self.decay_factor = np.exp(-1 / (time_constant_iters / monitor.update_frequency))
 
     def get_values(self):
         iter_numbers, values = self.monitor.get_values()
@@ -52,7 +56,12 @@ class ExponentialAverageMonitor(Monitor):
         averaged_values = [values[0]]
         curr_val = values[0]
         for value in values[1:]:
-            curr_val = curr_val * self.decay_factor + value * (1 - self.decay_factor)
+            if value is None:
+                curr_val = None
+            elif curr_val is None:
+                curr_val = value
+            else:
+                curr_val = curr_val * self.decay_factor + value * (1 - self.decay_factor)
             averaged_values += [curr_val]
         return iter_numbers, averaged_values
 
@@ -84,7 +93,7 @@ class MonitorBuilder:
         else:
             raise Exception("Fatal Error")
 
-        return GenericMonitor(var_name, get_value, update_frequency)
+        return GenericMonitor(var_name, get_value, update_frequency=update_frequency)
 
     @staticmethod
     def create_potential_monitor(model, layer_num, cell_type, cell_location, update_frequency=1):
@@ -128,7 +137,7 @@ class MonitorBuilder:
         else:
             raise Exception("Fatal Error")
 
-        return GenericMonitor(var_name, get_potential, update_frequency)
+        return GenericMonitor(var_name, get_potential, update_frequency=update_frequency)
 
     @staticmethod
     def create_weight_monitor(model, weight_type, layer_num, from_cell_location, to_cell_location, update_frequency=1):
@@ -159,7 +168,7 @@ class MonitorBuilder:
             value = float(weights[from_cell_location, to_cell_location])
             return value
 
-        return GenericMonitor(var_name, get_weight, update_frequency)
+        return GenericMonitor(var_name, get_weight, update_frequency=update_frequency)
 
     @staticmethod
     def create_feedforward_predict_weight_diff_monitor(model, feedforward_layer_num, predict_layer_num, update_frequency=1):
@@ -175,10 +184,10 @@ class MonitorBuilder:
             return float(value)
 
         var_name = 'feedforward_predict_weight_diff'
-        return GenericMonitor(var_name, get_feedforward_predict_weights_diff, update_frequency)
+        return GenericMonitor(var_name, get_feedforward_predict_weights_diff, update_frequency=update_frequency)
 
     @staticmethod
-    def create_basal_soma_rate_diff_monitor(model, layer_num, cell_location, dynamics_parameters, update_frequency):
+    def create_pyramidal_basal_soma_rate_diff_monitor(model, layer_num, cell_location, dynamics_parameters, update_frequency):
         layers = model.get_layers()
         _, layer = layers[layer_num]
 
@@ -189,7 +198,7 @@ class MonitorBuilder:
 
         scaling_factor = basal_conductance / (leak_conductance + basal_conductance + apical_conductance)
 
-        def get_basal_soma_rate_diff(iter_number):
+        def get_pyramidal_basal_soma_rate_diff(iter_number):
             pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
             pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
 
@@ -199,8 +208,8 @@ class MonitorBuilder:
             value = soma_rate - basal_rate
             return float(value)
 
-        var_name = 'basal_soma_rate_diff'
-        return GenericMonitor(var_name, get_basal_soma_rate_diff, update_frequency)
+        var_name = 'pyramidal_basal_soma_rate_diff'
+        return GenericMonitor(var_name, get_pyramidal_basal_soma_rate_diff, update_frequency=update_frequency)
 
     @staticmethod
     def create_weight_angle_monitor(model, layer_num, weight_type, update_frequency):
@@ -246,14 +255,14 @@ class MonitorBuilder:
             raise Exception('Invalid weight type: {}'.format(weight_type))
 
         var_name = weight_type
-        return GenericMonitor(var_name, get_angle, update_frequency)
+        return GenericMonitor(var_name, get_angle, plot_range=(0, 180), update_frequency=update_frequency)
 
     @staticmethod
-    def create_error_monitor(model, data_stream, error_type, update_frequency):
+    def create_error_monitor(model, input_output_stream, error_type, update_frequency):
         _, last_layer = model.get_layers()[-1]
         if error_type == 'sum_squares_error':
             def get_error(num_iters):
-                target = data_stream.get(num_iters)
+                target = input_output_stream.get_output_targets(num_iters)
                 if target is None:
                     return None
                 else:
@@ -264,4 +273,4 @@ class MonitorBuilder:
             raise Exception('Invalid error type {}'.format(error_type))
 
         var_name = error_type
-        return GenericMonitor(var_name, get_error, update_frequency)
+        return GenericMonitor(var_name, get_error, update_frequency=update_frequency)

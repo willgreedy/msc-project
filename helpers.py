@@ -2,7 +2,8 @@ import numpy as np
 from abc import ABC
 import matplotlib.pyplot as plt
 import pickle
-
+import pathlib
+import datetime
 
 def create_transfer_function(config):
     type = config['type']
@@ -16,9 +17,13 @@ def create_transfer_function(config):
             result[result < 500.0] = gamma * np.log(1.0 + np.exp(result[result<500.0]))
             return result
 
-        return transfer_fun
+    elif type == 'logistic':
+        def transfer_fun(u):
+            result = 1.0 / (1.0 + np.exp(-u))
+            return result
     else:
         raise Exception("Invalid transfer function: {}".format(type))
+    return transfer_fun
 
 
 def create_diff_plot(monitor1, monitor2):
@@ -30,13 +35,31 @@ def create_diff_plot(monitor1, monitor2):
     plt.title(monitor1.get_var_name() + "-" + monitor2.get_var_name())
 
 
-def create_plot(monitor):
+def create_plot(monitor, show=False, save_location=None, sub_directory=None):
     iter_numbers, values = monitor.get_values()
     print("Creating plot with {} values.".format(len(values)))
-    plt.figure()
-    plt.plot(iter_numbers, values)
-    plt.xlim(iter_numbers[0], iter_numbers[-1])
-    plt.title(monitor.get_var_name())
+    fig, ax = plt.subplots()
+    ax.plot(iter_numbers, values)
+    ax.set_xlim(iter_numbers[0], iter_numbers[-1])
+    y_range = monitor.get_plot_range()
+    if y_range is not None:
+        ax.set_ylim(y_range[0], y_range[1])
+    ax.set_title(monitor.get_var_name())
+    if save_location is not None:
+        location = "experiment_plots/" + save_location + "/" + sub_directory + "/"
+        time = datetime.datetime.now().strftime("%I-%M%p %B%d")
+        filename = monitor.var_name + "_" + time
+
+        pathlib.Path(location).mkdir(parents=True, exist_ok=True)
+        fig.savefig(location + filename + ".pdf", bbox_inches='tight')
+
+        plot_objects_location = location + 'plot_objects/'
+        pathlib.Path(plot_objects_location).mkdir(parents=True, exist_ok=True)
+        with open(plot_objects_location + filename + '.pkl', 'wb') as file:
+            pickle.dump(fig, file)
+
+    if show is False:
+        plt.close(fig)
 
 
 def visualise_MNIST(image):

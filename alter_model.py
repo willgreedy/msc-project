@@ -21,10 +21,10 @@ orig_feedforward_lr2 = 0.0005
 orig_predict_lr = 0.0011875
 orig_interneuron_lr = 0.0059375
 
-layer.set_feedforward_learning_rate(orig_feedforward_lr1 * 120)
-layer2.set_feedforward_learning_rate(orig_feedforward_lr2 * 120)
-layer.set_interneuron_learning_rate(orig_interneuron_lr * 120)
-layer.set_predict_learning_rate(orig_predict_lr * 120)
+layer.set_feedforward_learning_rate(orig_feedforward_lr1)
+layer2.set_feedforward_learning_rate(orig_feedforward_lr2)
+layer.set_interneuron_learning_rate(orig_interneuron_lr)
+layer.set_predict_learning_rate(orig_predict_lr)
 
 interneuron_lr = layer.get_interneuron_learning_rate()
 predict_lr = layer.get_predict_learning_rate()
@@ -51,7 +51,7 @@ print(predict_weights.shape)
 #np.save("second_layer_feedforward_weights", feedforward_weights)
 #np.save("first_layer_feedforward_weights", first_layer_feedforward_weights)
 
-save_model('target_network_symmetric', model)
+#save_model('target_network_symmetric', model)
 
 a = np.random.uniform(-0.1, 0.1, (1000, 100))
 b = np.random.uniform(-0.1, 0.1, (1000, 100))
