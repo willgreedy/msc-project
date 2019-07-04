@@ -1,5 +1,5 @@
 import numpy as np
-from abc import ABC
+from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 import pickle
 import pathlib
@@ -46,7 +46,10 @@ def create_plot(monitor, show=False, save_location=None, sub_directory=None):
         ax.set_ylim(y_range[0], y_range[1])
     ax.set_title(monitor.get_var_name())
     if save_location is not None:
-        location = "experiment_plots/" + save_location + "/" + sub_directory + "/"
+        if sub_directory is not None:
+            location = "experiment_plots/" + save_location + "/" + sub_directory + "/"
+        else:
+            location = "experiment_plots/" + save_location + "/"
         time = datetime.datetime.now().strftime("%I-%M%p %B%d")
         filename = monitor.var_name + "_" + time
 
@@ -104,6 +107,10 @@ def save_model(name, model):
 
 class Initialiser(ABC):
     def __init__(self):
+        pass
+
+    @abstractmethod
+    def sample(self, shape):
         pass
 
 

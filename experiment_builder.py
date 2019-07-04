@@ -181,19 +181,16 @@ class ExperimentBuilder:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
     def start_experiment(self):
-        num_epoch_iterations = 10000
-        num_epochs = 3
+        num_epoch_iterations = 100000
+        num_test_iterations = 500000
+        num_epochs = 10
 
         for i in range(num_epochs):
             self.dynamics_simulator.run_simulation(num_epoch_iterations * (i + 1))
             self.plot_monitors(show=False, sub_directory='epoch_{}'.format(i + 1))
 
         self.dynamics_simulator.set_testing_phase(True)
-        self.dynamics_simulator.run_simulation((num_epochs + 1) * num_epoch_iterations)
-        #self.dynamics_simulator.set_testing_phase(False)
-        #self.dynamics_simulator.run_simulation(num_iterations + 400000)
-        #self.dynamics_simulator.set_testing_phase(True)
-        #self.dynamics_simulator.run_simulation(num_iterations + 600000)
+        self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + num_test_iterations)
 
         self.dynamics_simulator.save_model(self.experiment_name)
         self.plot_monitors(show=True, sub_directory='test')
@@ -208,13 +205,12 @@ if __name__ == '__main__':
     input_args = sys.argv[1:]
     experiment = ExperimentBuilder(input_args, experiment_name='target_network',
                                                model_file=None)
-    #print("Layer 1 weights: {}".format(experiment.model.get_layers()[0][1].get_feedforward_weights()))
-    #print("Layer 2 weights: {}".format(experiment.model.get_layers()[1][1].get_feedforward_weights()))
     experiment.add_monitors()
     experiment.initialise_target_network_experiment()
 
     #import atexit
     #atexit.register(experiment.plot_monitors)
+
     experiment.start_experiment()
 
 
