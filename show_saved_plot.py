@@ -1,14 +1,26 @@
 import pickle
 from matplotlib import pyplot as plt
 import os
+import sys
 
-experiment_location = 'experiment_plots/target_network/test/plot_objects/'
 
-#filename = 'feedback_interneuron_angle_07-07PM July04.pkl'
+def show_saved_plots(plot_location):
+    print("Showing all {} plots in directory {}".format(len(os.listdir(plot_location)), plot_location))
+    for filename in os.listdir(plot_location):
+        with open(plot_location + filename, 'rb') as file:
+            fig = pickle.load(file)
+    plt.show()
 
-print(len(os.listdir(experiment_location)))
-for filename in os.listdir(experiment_location):
-    with open(experiment_location + filename, 'rb') as file:
+
+def show_saved_plot(plot_location):
+    print("Showing {}".format(plot_location))
+    with open(plot_location, 'rb') as file:
         fig = pickle.load(file)
+    plt.show()
 
-plt.show()
+if __name__ == '__main__':
+    plot_location = sys.argv[1]
+    if plot_location[-4:] == '.pkl':
+        show_saved_plot(plot_location)
+    else:
+        show_saved_plots(plot_location)

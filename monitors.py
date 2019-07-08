@@ -46,7 +46,7 @@ class ExponentialAverageMonitor(Monitor):
     def __init__(self, monitor, time_constant_iters):
         super().__init__(monitor.var_name, update_frequency=monitor.update_frequency)
         self.monitor = monitor
-        self.decay_factor = np.exp(-1 / (time_constant_iters / monitor.update_frequency))
+        self.decay_factor = np.exp(-1.0 / (time_constant_iters / monitor.update_frequency))
 
     def get_values(self):
         iter_numbers, values = self.monitor.get_values()
@@ -258,16 +258,20 @@ class MonitorBuilder:
         return GenericMonitor(var_name, get_angle, plot_range=(0, 180), update_frequency=update_frequency)
 
     @staticmethod
-    def create_error_monitor(model, input_output_stream, error_type, update_frequency):
+    def create_error_monitor(model, input_output_stream, error_type, dynamics_parameters, update_frequency):
         _, last_layer = model.get_layers()[-1]
+
+        transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
+
         if error_type == 'sum_squares_error':
             def get_error(num_iters):
                 target = input_output_stream.get_output_targets(num_iters)
                 if target is None:
                     return None
                 else:
-                    output = last_layer.get_pyramidal_somatic_potentials()
-                    error = np.sum((target - output)**2)
+                    target_rate = transfer_function(target)
+                    output_rate = transfer_function(last_layer.get_pyramidal_somatic_potentials())
+                    error = np.sum((target_rate - output_rate)**2)
                     return float(error)
         else:
             raise Exception('Invalid error type {}'.format(error_type))

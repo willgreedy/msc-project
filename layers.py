@@ -16,13 +16,12 @@ class Layer(ABC):
         self.new_pyramidal_basal_potentials = None
         self.change_feedforward_weights = np.zeros((self.num_neurons, num_inputs))
 
-    def perform_update(self, step_size, weight_update_factor=1.0):
+    def perform_update(self, step_size, weight_update_factor=0.0):
         self.pyramidal_somatic_potentials += step_size * self.change_pyramidal_somatic_potentials
         #self.pyramidal_somatic_potentials = self.new_pyramidal_basal_potentials
         self.pyramidal_basal_potentials = self.new_pyramidal_basal_potentials
 
-        self.feedforward_weights += step_size * weight_update_factor * self.change_feedforward_weights
-        self.change_feedforward_weights -= (weight_update_factor * self.change_feedforward_weights)
+        self.feedforward_weights += step_size * self.change_feedforward_weights
 
     def get_pyramidal_somatic_potentials(self):
         return self.pyramidal_somatic_potentials
@@ -45,8 +44,8 @@ class Layer(ABC):
     def set_new_pyramidal_basal_potentials(self, new_pyramidal_basal_potentials):
         self.new_pyramidal_basal_potentials = new_pyramidal_basal_potentials
 
-    def set_change_feedforward_weights(self, change_feedforward_weights):
-        self.change_feedforward_weights = change_feedforward_weights
+    def set_change_feedforward_weights(self, change_feedforward_weights, weight_update_factor=0.0):
+        self.change_feedforward_weights = weight_update_factor * self.change_feedforward_weights + (1 - weight_update_factor) * change_feedforward_weights
 
 
 class StandardLayer(Layer):
@@ -146,17 +145,17 @@ class StandardLayer(Layer):
     def set_new_interneuron_basal_potentials(self, new_interneuron_basal_potentials):
         self.new_interneuron_basal_potentials = new_interneuron_basal_potentials
 
-    def set_change_feedforward_weights(self, change_feedforward_weights):
-        self.change_feedforward_weights += change_feedforward_weights
+    def set_change_feedforward_weights(self, change_feedforward_weights, weight_update_factor=0.0):
+        self.change_feedforward_weights = weight_update_factor * self.change_feedforward_weights + (1 - weight_update_factor) * change_feedforward_weights
 
-    def set_change_predict_weights(self, change_predict_weights):
-        self.change_predict_weights += change_predict_weights
+    def set_change_predict_weights(self, change_predict_weights, weight_update_factor=0.0):
+        self.change_predict_weights = weight_update_factor * self.change_predict_weights + (1 - weight_update_factor) * change_predict_weights
 
-    def set_change_interneuron_weights(self, change_interneuron_weights):
-        self.change_interneuron_weights += change_interneuron_weights
+    def set_change_interneuron_weights(self, change_interneuron_weights, weight_update_factor=0.0):
+        self.change_interneuron_weights += weight_update_factor * self.change_interneuron_weights + (1 - weight_update_factor) * change_interneuron_weights
 
-    def set_change_feedback_weights(self, change_feedback_weights):
-        self.change_feedback_weights += change_feedback_weights
+    def set_change_feedback_weights(self, change_feedback_weights, weight_update_factor=0.0):
+        self.change_feedback_weights += weight_update_factor * self.change_feedback_weights + (1 - weight_update_factor) * change_feedback_weights
 
 
 class OutputPyramidalLayer(Layer):

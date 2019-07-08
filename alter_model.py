@@ -1,7 +1,7 @@
 from helpers import load_model, save_model
 import numpy as np
 
-model = load_model('target_network_symmetric')
+model = load_model('xor_sigmoid_lrx100_sp')
 
 print(model)
 
@@ -45,21 +45,21 @@ print(feedback_weights.shape)
 print(interneuron_weights.shape)
 print(predict_weights.shape)
 
-#layer.predict_weights = feedforward_weights.copy()
-#layer.interneuron_weights = feedback_weights.copy()
+layer.predict_weights = feedforward_weights.copy()
+layer.interneuron_weights = -feedback_weights.copy()
 
 #np.save("second_layer_feedforward_weights", feedforward_weights)
 #np.save("first_layer_feedforward_weights", first_layer_feedforward_weights)
 
-#save_model('target_network_symmetric', model)
+save_model('xor_sigmoid_lrx100_sp', model)
 
-a = np.random.uniform(-0.1, 0.1, (1000, 100))
-b = np.random.uniform(-0.1, 0.1, (1000, 100))
+#a = np.random.uniform(-0.1, 0.1, (1000, 100))
+#b = np.random.uniform(-0.1, 0.1, (1000, 100))
 
-scaled_dot_product = np.dot(a.flatten() / np.linalg.norm(a), b.T.flatten() / np.linalg.norm(b.T))
-if np.abs(scaled_dot_product) >= 1.0:
-    angle = 0.0
-else:
-    angle = np.degrees(np.arccos(scaled_dot_product))
+#scaled_dot_product = np.dot(a.flatten() / np.linalg.norm(a), b.T.flatten() / np.linalg.norm(b.T))
+#if np.abs(scaled_dot_product) >= 1.0:
+#    angle = 0.0
+#else:
+    #angle = np.degrees(np.arccos(scaled_dot_product))
 
-print(angle)
+#print(angle)

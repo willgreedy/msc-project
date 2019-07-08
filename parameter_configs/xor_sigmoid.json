@@ -20,7 +20,7 @@
     "plastic_feedback_weights": true,
 
     "transfer_function": {
-      "type": "soft-rectify"
+      "type": "logistic"
     }
   },
 

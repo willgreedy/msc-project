@@ -84,14 +84,14 @@ def show_plots():
 
 def compute_non_linear_transform(input_sequence, transfer_function, feedforward_weights_list=list()):
     curr_values = input_sequence
-    for feedforward_weights in feedforward_weights_list:
-        curr_values = transfer_function(curr_values)
-        print("Transfer: {}".format(curr_values))
+    for feedforward_weights in feedforward_weights_list[:-1]:
         curr_values = np.matmul(curr_values, feedforward_weights)
         print("Linear: {}".format(curr_values))
+        curr_values = transfer_function(curr_values)
+        print("Transfer: {}".format(curr_values))
 
-    #curr_values = np.matmul(curr_values, feedforward_weights_list[-1])
-    #print("Linear: {}".format(curr_values))
+    curr_values = np.matmul(curr_values, feedforward_weights_list[-1])
+    print("Linear: {}".format(curr_values))
     return curr_values
 
 
@@ -122,7 +122,7 @@ class UniformInitialiser(Initialiser):
 
     def sample(self, shape):
         res = np.random.uniform(self.lower_bound, self.upper_bound, shape)
-        print("Result: {}".format(res))
+        #print("Result: {}".format(res))
         return res
 
 

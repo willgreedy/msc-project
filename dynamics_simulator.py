@@ -60,10 +60,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         self.step_size = dynamics_parameters['ms_per_time_step']
         if dynamics_parameters['weight_time_constant_ms'] == 0:
-            self.weight_update_factor = 1
+            self.weight_update_factor = 0.0
         else:
-            self.weight_update_factor = 1 - np.exp(
-                -1 / (dynamics_parameters['weight_time_constant_ms'] / dynamics_parameters['ms_per_time_step']))
+            self.weight_update_factor = np.exp(
+                -1.0 / (dynamics_parameters['weight_time_constant_ms'] / float(dynamics_parameters['ms_per_time_step'])))
 
     def step_simulation(self):
         self.compute_updates()
@@ -122,23 +122,23 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         new_interneuron_basal_potentials = self.compute_interneuron_basal_potential_updates(layer)
 
         # Compute changes in weights
-        if self.plastic_feedforward_weights:
+        if self.plastic_feedforward_weights and not self.testing_phase:
             change_feedforward_weights = self.compute_feedforward_weight_updates(layer,
                                                                              prev_layer_pyramidal_somatic_potentials)
         else:
             change_feedforward_weights = np.zeros(layer.get_feedforward_weights().shape)
 
-        if self.plastic_predict_weights:
+        if self.plastic_predict_weights and not self.testing_phase:
             change_predict_weights = self.compute_predict_weight_updates(layer)
         else:
             change_predict_weights = np.zeros(layer.get_predict_weights().shape)
 
-        if self.plastic_interneuron_weights:
+        if self.plastic_interneuron_weights and not self.testing_phase:
             change_interneuron_weights = self.compute_interneuron_weight_updates(layer)
         else:
             change_interneuron_weights = np.zeros(layer.get_interneuron_weights().shape)
 
-        if self.plastic_feedback_weights:
+        if self.plastic_feedback_weights and not self.testing_phase:
             change_feedback_weights = self.compute_feedback_weight_updates(layer,
                                                                            next_layer_pyramidal_somatic_potentials)
         else:
@@ -149,10 +149,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         layer.set_new_pyramidal_basal_potentials(new_pyramidal_basal_potentials)
         layer.set_new_pyramidal_apical_potentials(new_pyramidal_apical_potentials)
         layer.set_new_interneuron_basal_potentials(new_interneuron_basal_potentials)
-        layer.set_change_feedforward_weights(change_feedforward_weights)
-        layer.set_change_predict_weights(change_predict_weights)
-        layer.set_change_interneuron_weights(change_interneuron_weights)
-        layer.set_change_feedback_weights(change_feedback_weights)
+        layer.set_change_feedforward_weights(change_feedforward_weights, self.weight_update_factor)
+        layer.set_change_predict_weights(change_predict_weights, self.weight_update_factor)
+        layer.set_change_interneuron_weights(change_interneuron_weights, self.weight_update_factor)
+        layer.set_change_feedback_weights(change_feedback_weights, self.weight_update_factor)
 
     def compute_output_layer_updates(self, layer, prev_layer_pyramidal_somatic_potentials, output_targets):
         change_pyramidal_somatic_potentials = self.compute_output_pyramidal_somatic_potential_updates(layer,
@@ -161,7 +161,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         new_pyramidal_basal_potentials = self.compute_pyramidal_basal_potential_updates(layer,
                                                                                         prev_layer_pyramidal_somatic_potentials)
 
-        if self.plastic_feedforward_weights:
+        if self.plastic_feedforward_weights and not self.testing_phase:
             change_feedforward_weights = self.compute_output_layer_feedforward_weight_updates(layer,
                                                                              prev_layer_pyramidal_somatic_potentials)
         else:
@@ -169,7 +169,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         layer.set_change_pyramidal_somatic_potentials(change_pyramidal_somatic_potentials)
         layer.set_new_pyramidal_basal_potentials(new_pyramidal_basal_potentials)
-        layer.set_change_feedforward_weights(change_feedforward_weights)
+        layer.set_change_feedforward_weights(change_feedforward_weights, self.weight_update_factor)
 
     def compute_standard_pyramidal_somatic_potential_updates(self, layer):
         pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
@@ -177,7 +177,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         pyramidal_apical_potentials = layer.get_pyramidal_apical_potentials()
 
         # Compute somatic compartment updates
-        background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
+        if self.testing_phase:
+            background_noise = np.zeros((layer.num_neurons, 1))
+        else:
+            background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
                                             size=(layer.num_neurons, 1))
 
         change_pyramidal_somatic_potentials = -self.leak_conductance * pyramidal_somatic_potentials + \
@@ -194,7 +197,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
 
         # Compute somatic compartment updates
-        background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
+        if self.testing_phase:
+            background_noise = np.zeros((layer.num_neurons, 1))
+        else:
+            background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
                                             size=(layer.num_neurons, 1))
 
         if output_targets is not None and not self.testing_phase:
@@ -227,7 +233,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         teaching_feedback = self.nudging_conductance * (next_layer_pyramidal_somatic_potentials -
                                                         interneuron_somatic_potentials)
 
-        background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
+        if self.testing_phase:
+            background_noise = np.zeros((layer.num_neurons_next, 1))
+        else:
+            background_noise = np.random.normal(loc=0, scale=self.background_noise_std,
                                             size=(layer.num_neurons_next, 1))
 
         change_interneuron_somatic_potentials = -self.leak_conductance * interneuron_somatic_potentials + \

@@ -20,7 +20,7 @@
     "plastic_feedback_weights": true,
 
     "transfer_function": {
-      "type": "soft-rectify"
+      "type": "logistic"
     }
   },
 
@@ -36,8 +36,8 @@
     "layer_sizes": [3, 1]
   },
 
-  "feedforward_learning_rates": [0.0011875, 0.0005],
-  "predict_learning_rates": [0.0011875],
-  "interneuron_learning_rates": [0.0059375],
-  "feedback_learning_rates": [0.0011875]
+  "feedforward_learning_rates": [0.011875, 0.005],
+  "predict_learning_rates": [0.011875],
+  "interneuron_learning_rates": [0.059375],
+  "feedback_learning_rates": [0.011875]
 }
