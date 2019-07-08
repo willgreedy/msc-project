@@ -1,6 +1,8 @@
 import numpy as np
 from abc import ABC, abstractmethod
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('agg')
+from matplotlib import pyplot as plt
 import pickle
 import pathlib
 import datetime
