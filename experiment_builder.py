@@ -60,7 +60,7 @@ class ExperimentBuilder:
         self.dynamics = self.config['dynamics']
         self.dynamics_simulator = None
         self.monitors = []
-        self.monitor_frequency = 5
+        self.monitor_frequency = 25
 
     def add_monitors(self):
         self.monitors += [MonitorBuilder.create_feedforward_predict_weight_diff_monitor(self.model, 1, 0,
