@@ -2,8 +2,8 @@ import sys
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, ConstantInitialiser, create_plot, create_diff_plot, visualise_MNIST, \
-    show_plots, load_model, compute_non_linear_transform, create_transfer_function
+from helpers import UniformInitialiser, ConstantInitialiser, create_plot, create_diff_plot, visualise_mnist, \
+    show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_plot_subdirectory
 from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimulator
 from data_streams import InputOutputStream, CompositeStream, ConstantStream, CyclingStream, MNISTInputOutputStream, \
     SmoothStream, NoneStream
@@ -203,14 +203,14 @@ class ExperimentBuilder:
         else:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
-    def start_experiment(self):
-        num_epoch_iterations = 500000
-        num_test_iterations = 500000
-        num_epochs = 8
-
+    def start_experiment(self, num_epochs, num_epoch_iterations, num_test_iterations):
         for i in range(num_epochs):
-            self.dynamics_simulator.run_simulation(num_epoch_iterations * (i + 1))
-            self.plot_monitors(show=False, sub_directory='epoch_{}'.format(i + 1))
+            epoch_index = i + 1
+            self.dynamics_simulator.run_simulation(num_epoch_iterations * epoch_index)
+            self.plot_monitors(show=False, sub_directory='epoch_{}'.format(epoch_index))
+            if epoch_index > 1:
+                remove_plot_subdirectory(save_location=self.experiment_name,
+                                         sub_directory='epoch_{}'.format(epoch_index - 1))
 
         self.dynamics_simulator.set_testing_phase(True)
         self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + num_test_iterations)
@@ -228,7 +228,7 @@ class ExperimentBuilder:
 if __name__ == '__main__':
     input_args = sys.argv[1:]
 
-    model_file = None
+    model_file = 'target_network_lrx100'
     if len(input_args) > 0:
         experiment_name = input_args[0]
     else:
@@ -248,10 +248,13 @@ if __name__ == '__main__':
     if experiment_name.startswith('xor'):
         experiment.initialise_xor_experiment(example_iterations=1000, self_predict_phase_length=5000000)
     elif experiment_name.startswith('target_network'):
-        experiment.initialise_target_network_experiment(num_examples=1000, example_iterations=1000,
-                                                        self_predict_phase_length=500000)
-
+        experiment.initialise_target_network_experiment(num_examples=200, example_iterations=1000,
+                                                        self_predict_phase_length=1000000)
+    elif experiment_name.startswith('mnist'):
+        experiment.initialise_mnist_experiment()
+    else:
+        raise Exception("Invalid experiment name: {}".format(experiment_name))
     # import atexit
     # atexit.register(experiment.plot_monitors)
 
-    experiment.start_experiment()
+    experiment.start_experiment(10, 500000, 500000)
