@@ -77,26 +77,27 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         for layer_index, (_, layer) in enumerate(layers):
             if isinstance(layer, StandardLayer):
-                if layer_index == 0:
-                    prev_layer_pyramidal_somatic_potentials = inputs
-                elif layer_index < len(layers) - 1:
-                    _, prev_layer = layers[layer_index - 1]
-                    prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
-                else:
-                    raise Exception('Invalid layer specification! StandardLayer cannot be used as the final layer.')
-
                 _, next_layer = layers[layer_index + 1]
                 next_layer_pyramidal_somatic_potentials = next_layer.get_pyramidal_somatic_potentials()
 
-                self.compute_standard_layer_updates(layer,
-                                                    prev_layer_pyramidal_somatic_potentials,
-                                                    next_layer_pyramidal_somatic_potentials)
+                if layer_index == 0:
+                    prev_layer_pyramidal_firing_rates = inputs
+                elif layer_index < len(layers) - 1:
+                    _, prev_layer = layers[layer_index - 1]
+                    prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
+                    prev_layer_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
+                else:
+                    raise Exception('Invalid layer specification! StandardLayer cannot be used as the final layer.')
 
+                self.compute_standard_layer_updates(layer,
+                                                prev_layer_pyramidal_firing_rates,
+                                                next_layer_pyramidal_somatic_potentials)
             elif isinstance(layer, OutputPyramidalLayer):
                 if layer_index > 0:
                     _, prev_layer = layers[layer_index - 1]
                     prev_layer_pyramidal_somatic_potentials = prev_layer.get_pyramidal_somatic_potentials()
-                    self.compute_output_layer_updates(layer, prev_layer_pyramidal_somatic_potentials, output_targets)
+                    prev_layer_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
+                    self.compute_output_layer_updates(layer, prev_layer_pyramidal_firing_rates, output_targets)
                 else:
                     raise Exception('Invalid layer specification! OutputPyramidalLayer cannot be used as the first layer.')
 
@@ -105,7 +106,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         for layer_index, (_, layer) in enumerate(layers):
             layer.perform_update(self.step_size, self.weight_update_factor)
 
-    def compute_standard_layer_updates(self, layer, prev_layer_pyramidal_somatic_potentials,
+    def compute_standard_layer_updates(self, layer, prev_layer_pyramidal_firing_rates,
                                        next_layer_pyramidal_somatic_potentials):
 
         # Compute somatic compartment updates
@@ -115,7 +116,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         # Compute basal and apical compartment updates
         new_pyramidal_basal_potentials = self.compute_pyramidal_basal_potential_updates(layer,
-                                                                                        prev_layer_pyramidal_somatic_potentials)
+                                                                                        prev_layer_pyramidal_firing_rates)
 
         new_pyramidal_apical_potentials = self.compute_pyramidal_apical_potential_updates(layer,
                                                                                          next_layer_pyramidal_somatic_potentials)
@@ -124,7 +125,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         # Compute changes in weights
         if self.plastic_feedforward_weights and not self.testing_phase:
             change_feedforward_weights = self.compute_feedforward_weight_updates(layer,
-                                                                             prev_layer_pyramidal_somatic_potentials)
+                                                                                 prev_layer_pyramidal_firing_rates)
         else:
             change_feedforward_weights = np.zeros(layer.get_feedforward_weights().shape)
 
@@ -154,16 +155,16 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         layer.set_change_interneuron_weights(change_interneuron_weights, self.weight_update_factor)
         layer.set_change_feedback_weights(change_feedback_weights, self.weight_update_factor)
 
-    def compute_output_layer_updates(self, layer, prev_layer_pyramidal_somatic_potentials, output_targets):
+    def compute_output_layer_updates(self, layer, prev_layer_pyramidal_firing_rates, output_targets):
         change_pyramidal_somatic_potentials = self.compute_output_pyramidal_somatic_potential_updates(layer,
                                                                                                       output_targets)
 
         new_pyramidal_basal_potentials = self.compute_pyramidal_basal_potential_updates(layer,
-                                                                                        prev_layer_pyramidal_somatic_potentials)
+                                                                                        prev_layer_pyramidal_firing_rates)
 
         if self.plastic_feedforward_weights and not self.testing_phase:
             change_feedforward_weights = self.compute_output_layer_feedforward_weight_updates(layer,
-                                                                             prev_layer_pyramidal_somatic_potentials)
+                                                                                        prev_layer_pyramidal_firing_rates)
         else:
             change_feedforward_weights = np.zeros(layer.get_feedforward_weights().shape)
 
@@ -246,11 +247,10 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         return change_interneuron_somatic_potentials
 
-    def compute_pyramidal_basal_potential_updates(self, layer, prev_layer_pyramidal_somatic_potentials):
+    def compute_pyramidal_basal_potential_updates(self, layer, prev_layer_pyramidal_firing_rates):
         feedforward_weights = layer.get_feedforward_weights()
 
-        prev_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
-        new_pyramidal_basal_potentials = np.dot(feedforward_weights, prev_pyramidal_firing_rates)
+        new_pyramidal_basal_potentials = np.dot(feedforward_weights, prev_layer_pyramidal_firing_rates)
 
         return new_pyramidal_basal_potentials
 
@@ -278,7 +278,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         new_interneuron_basal_potential = np.dot(predict_weights, self.transfer_function(pyramidal_somatic_potentials))
         return new_interneuron_basal_potential
 
-    def compute_feedforward_weight_updates(self, layer, prev_layer_pyramidal_somatic_potentials):
+    def compute_feedforward_weight_updates(self, layer, prev_layer_pyramidal_firing_rates):
         pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
         pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
 
@@ -287,13 +287,11 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         scaling_factor = self.basal_conductance / (self.leak_conductance + self.basal_conductance +
                                                              self.apical_conductance)
 
-        prev_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
-
         change_feedforward_weights = feedforward_learning_rate * \
                                      np.dot((self.transfer_function(pyramidal_somatic_potentials) -
                                              self.transfer_function(scaling_factor *
                                                                     pyramidal_basal_potentials)),
-                                            prev_pyramidal_firing_rates.T)
+                                            prev_layer_pyramidal_firing_rates.T)
 
         #print("Max weight: {}".format(np.max(layer.get_feedforward_weights())))
         #print("Max value: {}".format(np.max((self.transfer_function(pyramidal_somatic_potentials) -
@@ -303,7 +301,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         #print("Input Firing Rate: {}".format(scaling_factor * pyramidal_basal_potentials[0,0]))
         return change_feedforward_weights
 
-    def compute_output_layer_feedforward_weight_updates(self, layer, prev_layer_pyramidal_somatic_potentials):
+    def compute_output_layer_feedforward_weight_updates(self, layer, prev_layer_pyramidal_firing_rates):
         pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
         pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
 
@@ -311,13 +309,11 @@ class StandardDynamicsSimulator(DynamicsSimulator):
 
         scaling_factor = self.basal_conductance / (self.leak_conductance + self.basal_conductance)
 
-        prev_pyramidal_firing_rates = self.transfer_function(prev_layer_pyramidal_somatic_potentials)
-
         change_feedforward_weights = feedforward_learning_rate * \
                                      np.dot((self.transfer_function(pyramidal_somatic_potentials) -
                                              self.transfer_function(scaling_factor *
                                                                     pyramidal_basal_potentials)),
-                                            prev_pyramidal_firing_rates.T)
+                                            prev_layer_pyramidal_firing_rates.T)
 
         return change_feedforward_weights
 

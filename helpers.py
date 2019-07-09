@@ -5,6 +5,7 @@ matplotlib.use('agg')
 from matplotlib import pyplot as plt
 import pickle
 import pathlib
+import shutil
 import datetime
 
 def create_transfer_function(config):
@@ -67,7 +68,12 @@ def create_plot(monitor, show=False, save_location=None, sub_directory=None):
         plt.close(fig)
 
 
-def visualise_MNIST(image):
+def remove_plot_subdirectory(save_location, sub_directory):
+    location = pathlib.Path("experiment_plots/" + save_location + "/" + sub_directory + "/")
+    shutil.rmtree(location, ignore_errors=True)
+
+
+def visualise_mnist(image):
     plt.figure()
     plt.imshow(image.reshape(28,28), cmap='Greys')
 
