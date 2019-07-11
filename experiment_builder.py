@@ -63,9 +63,12 @@ class ExperimentBuilder:
         self.monitor_frequency = 25
 
     def add_monitors(self):
-        self.monitors += [MonitorBuilder.create_feedforward_predict_weight_diff_monitor(self.model, 1, 0,
-                                                                                        update_frequency
-                                                                                        =self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_weight_diff_monitor(self.model, 0, 'feedforward_predict_diff',
+                                                                    update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_diff_monitor(self.model, 0, 'feedback_interneuron_diff',
+                                                                    update_frequency=self.monitor_frequency)]
+
         self.monitors += [MonitorBuilder.create_weight_angle_monitor(self.model, 0, 'feedforward_feedback_angle',
                                                                      update_frequency=self.monitor_frequency)]
 
@@ -74,10 +77,18 @@ class ExperimentBuilder:
         self.monitors += [MonitorBuilder.create_weight_angle_monitor(self.model, 0, 'feedback_interneuron_angle',
                                                                      update_frequency=self.monitor_frequency)]
 
+        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedforward_weights", 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
         self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedforward_weights", 1, 0, 0,
                                                                update_frequency=self.monitor_frequency)]
+
         self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "predict_weights", 0, 0, 0,
                                                                update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "interneuron_weights", 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
         self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedback_weights", 0, 0, 0,
                                                                update_frequency=self.monitor_frequency)]
 

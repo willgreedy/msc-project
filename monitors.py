@@ -171,45 +171,36 @@ class MonitorBuilder:
         return GenericMonitor(var_name, get_weight, update_frequency=update_frequency)
 
     @staticmethod
-    def create_feedforward_predict_weight_diff_monitor(model, feedforward_layer_num, predict_layer_num, update_frequency=1):
-        layers = model.get_layers()
-        _, feedforward_layer = layers[feedforward_layer_num]
-        _, predict_layer = layers[predict_layer_num]
-
-        def get_feedforward_predict_weights_diff(iter_number):
-            feedforward_weights = feedforward_layer.get_feedforward_weights()
-            predict_weights = predict_layer.get_predict_weights()
-            value = np.sum((feedforward_weights - predict_weights) ** 2)
-
-            return float(value)
-
-        var_name = 'feedforward_predict_weight_diff'
-        return GenericMonitor(var_name, get_feedforward_predict_weights_diff, update_frequency=update_frequency)
-
-    @staticmethod
-    def create_pyramidal_basal_soma_rate_diff_monitor(model, layer_num, cell_location, dynamics_parameters, update_frequency):
+    def create_weight_diff_monitor(model, layer_num, weight_type, update_frequency=1):
         layers = model.get_layers()
         _, layer = layers[layer_num]
+        _, next_layer = layers[layer_num + 1]
 
-        leak_conductance = dynamics_parameters['leak_conductance']
-        apical_conductance = dynamics_parameters['apical_conductance']
-        basal_conductance = dynamics_parameters['basal_conductance']
-        transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
+        if weight_type == 'feedforward_feedback_diff':
+            _, next_layer = layers[layer_num + 1]
 
-        scaling_factor = basal_conductance / (leak_conductance + basal_conductance + apical_conductance)
+            def get_diff(num_iters):
+                feedforward_weights = next_layer.get_feedforward_weights()
+                feedback_weights = layer.get_feedback_weights().T
+                value = np.sum((feedforward_weights - feedback_weights) ** 2)
+                return float(value)
+        elif weight_type == 'feedforward_predict_diff':
+            def get_diff(num_iters):
+                feedforward_weights = next_layer.get_feedforward_weights()
+                predict_weights = layer.get_predict_weights()
+                value = np.sum((feedforward_weights - predict_weights) ** 2)
+                return float(value)
+        elif weight_type == 'feedback_interneuron_diff':
+            def get_diff(num_iters):
+                feedback_weights = layer.get_feedback_weights()
+                interneuron_weights = layer.get_interneuron_weights()
+                value = np.sum((feedback_weights - interneuron_weights) ** 2)
+                return float(value)
+        else:
+            raise Exception('Invalid weight type: {}'.format(weight_type))
 
-        def get_pyramidal_basal_soma_rate_diff(iter_number):
-            pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
-            pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
-
-            soma_rate = transfer_function(pyramidal_somatic_potentials[cell_location, None])
-            basal_rate = transfer_function(scaling_factor * pyramidal_basal_potentials[cell_location, None])
-
-            value = soma_rate - basal_rate
-            return float(value)
-
-        var_name = 'pyramidal_basal_soma_rate_diff'
-        return GenericMonitor(var_name, get_pyramidal_basal_soma_rate_diff, update_frequency=update_frequency)
+        var_name = weight_type
+        return GenericMonitor(var_name, get_diff, update_frequency=update_frequency)
 
     @staticmethod
     def create_weight_angle_monitor(model, layer_num, weight_type, update_frequency):
@@ -218,7 +209,7 @@ class MonitorBuilder:
         _, next_layer = layers[layer_num + 1]
 
         if weight_type == 'feedforward_feedback_angle':
-            _, next_layer = layers[layer_num + 1]
+
             def get_angle(num_iters):
                 feedforward_weights = next_layer.get_feedforward_weights()
                 feedback_weights = layer.get_feedback_weights().T
@@ -245,7 +236,7 @@ class MonitorBuilder:
                 feedback_weights = layer.get_feedback_weights()
                 interneuron_weights = layer.get_interneuron_weights()
                 scaled_dot_product = np.dot(feedback_weights.flatten() / np.linalg.norm(feedback_weights),
-                                                interneuron_weights.flatten() / np.linalg.norm(interneuron_weights))
+                                            interneuron_weights.flatten() / np.linalg.norm(interneuron_weights))
                 if np.abs(scaled_dot_product) >= 1.0:
                     angle = 0.0
                 else:
@@ -256,6 +247,32 @@ class MonitorBuilder:
 
         var_name = weight_type
         return GenericMonitor(var_name, get_angle, plot_range=(0, 180), update_frequency=update_frequency)
+
+
+    @staticmethod
+    def create_pyramidal_basal_soma_rate_diff_monitor(model, layer_num, cell_location, dynamics_parameters, update_frequency):
+        layers = model.get_layers()
+        _, layer = layers[layer_num]
+
+        leak_conductance = dynamics_parameters['leak_conductance']
+        apical_conductance = dynamics_parameters['apical_conductance']
+        basal_conductance = dynamics_parameters['basal_conductance']
+        transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
+
+        scaling_factor = basal_conductance / (leak_conductance + basal_conductance + apical_conductance)
+
+        def get_pyramidal_basal_soma_rate_diff(iter_number):
+            pyramidal_somatic_potentials = layer.get_pyramidal_somatic_potentials()
+            pyramidal_basal_potentials = layer.get_pyramidal_basal_potentials()
+
+            soma_rate = transfer_function(pyramidal_somatic_potentials[cell_location, None])
+            basal_rate = transfer_function(scaling_factor * pyramidal_basal_potentials[cell_location, None])
+
+            value = soma_rate - basal_rate
+            return float(value)
+
+        var_name = 'pyramidal_basal_soma_rate_diff'
+        return GenericMonitor(var_name, get_pyramidal_basal_soma_rate_diff, update_frequency=update_frequency)
 
     @staticmethod
     def create_error_monitor(model, input_output_stream, error_type, dynamics_parameters, update_frequency):
