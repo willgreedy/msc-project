@@ -31,16 +31,17 @@ class CompositeStream(Stream):
             raise Exception("First starting index in list must be 0.")
 
         for i in range(len(start_indices) - 1):
-            if start_indices[i] >= start_indices[i+1]:
-                raise Exception("List of start indices must be strictly ascending.")
+            if start_indices[i] > start_indices[i+1]:
+                raise Exception("List of start indices must be ascending.")
 
         self.stream_list = stream_list
         self.start_indices = start_indices
 
     def get(self, iteration_num):
-        for i, start_index in enumerate(self.start_indices[::-1]):
+        # Loop backwards through the list of starting indices
+        for i, start_index in list(zip(range(len(self.start_indices)), self.start_indices))[::-1]:
             if iteration_num >= start_index:
-                return self.stream_list[-(i+1)].get(iteration_num - start_index)
+                return self.stream_list[i].get(iteration_num - start_index)
         raise Exception("Stream index out of bounds: {}".format(iteration_num))
 
 

@@ -8,6 +8,7 @@ from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimu
 from data_streams import InputOutputStream, CompositeStream, ConstantStream, CyclingStream, MNISTInputOutputStream, \
     SmoothStream, NoneStream
 from monitors import MonitorBuilder, ExponentialAverageMonitor
+import argparse
 
 
 class ExperimentBuilder:
@@ -214,7 +215,7 @@ class ExperimentBuilder:
         else:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
-    def start_experiment(self, num_epochs, num_epoch_iterations, num_test_iterations):
+    def start_experiment(self, num_epochs, num_epoch_iterations, test_phase_length):
         for i in range(num_epochs):
             epoch_index = i + 1
             self.dynamics_simulator.run_simulation(num_epoch_iterations * epoch_index)
@@ -224,7 +225,7 @@ class ExperimentBuilder:
                                          sub_directory='epoch_{}'.format(epoch_index - 1))
 
         self.dynamics_simulator.set_testing_phase(True)
-        self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + num_test_iterations)
+        self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
 
         self.dynamics_simulator.save_model(self.experiment_name)
         self.plot_monitors(show=True, sub_directory='test')
@@ -237,30 +238,53 @@ class ExperimentBuilder:
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
     input_args = sys.argv[1:]
 
-    model_file = 'target_network_lrx100'
+    parser.add_argument('experiment_name', help='Name of the experiment.')
+    parser.add_argument('parameter_config_file', default=None,
+                        help='Parameter configuration file.')
+
+    parser.add_argument('num_epochs', type=int, help='Number of epochs to train for.')
+    parser.add_argument('num_epoch_iterations', type=int,
+                        help='Number of iterations to step through the dynamics per epoch.')
+
+    parser.add_argument('-self_predict_phase_length', type=int, default=0,
+                        help='Length of initial self-prediction stage where no output targets are given')
+    parser.add_argument('-test_phase_length', type=int, default=0,
+                        help='Length of the final test phase in iteration steps.')
+    parser.add_argument('-example_iterations', type=int, default=1000,
+                        help='Number of iterations that each training example is presented for.')
+
+    parser.add_argument('-model_file', default=None, help='Model file to load initial state from.')
+    parser.add_argument('-num_examples', type=int, help='Number of training examples to use.')
+
+    args = parser.parse_args()
+
     if len(input_args) > 0:
         experiment_name = input_args[0]
     else:
         raise Exception("No experiment name provided.")
 
-    if len(input_args) > 1:
-        config_file = input_args[1]
-        parameter_config = ParameterConfig(config_file)
-        print("Using configuration: {}".format(config_file))
+    if args.parameter_config_file is not None:
+        parameter_config = ParameterConfig(args.parameter_config_file)
+        print("Using parameter configuration: {}".format(args.parameter_config_file))
     else:
-        print("Using default configuration.")
+        print("Using default parameter configuration.")
         parameter_config = ParameterConfig()
 
-    experiment = ExperimentBuilder(parameter_config, experiment_name, model_file=model_file)
+    experiment = ExperimentBuilder(parameter_config, experiment_name, model_file=args.model_file)
     experiment.add_monitors()
 
     if experiment_name.startswith('xor'):
-        experiment.initialise_xor_experiment(example_iterations=1000, self_predict_phase_length=5000000)
+        experiment.initialise_xor_experiment(example_iterations=args.example_iterations,
+                                             self_predict_phase_length=args.self_predict_phase_length)
     elif experiment_name.startswith('target_network'):
-        experiment.initialise_target_network_experiment(num_examples=200, example_iterations=1000,
-                                                        self_predict_phase_length=1000000)
+        if args.num_examples is None:
+            raise Exception('Must provide number of examples given to target network.')
+        experiment.initialise_target_network_experiment(num_examples=args.num_examples,
+                                                        example_iterations=args.example_iterations,
+                                                        self_predict_phase_length=args.self_predict_phase_length)
     elif experiment_name.startswith('mnist'):
         experiment.initialise_mnist_experiment()
     else:
@@ -268,4 +292,5 @@ if __name__ == '__main__':
     # import atexit
     # atexit.register(experiment.plot_monitors)
 
-    experiment.start_experiment(10, 500000, 500000)
+    experiment.start_experiment(num_epochs=args.num_epochs, num_epoch_iterations=args.num_epoch_iterations,
+                                test_phase_length=args.test_phase_length)
