@@ -149,6 +149,9 @@ class ExperimentBuilder:
 
     def initialise_target_network_experiment(self, num_examples, example_iterations, self_predict_phase_length):
         input_sequence = np.random.uniform(-1, 1, (num_examples, self.input_size))
+
+        np.save('./target_network_weights/' + self.experiment_name + '_input_sequence', input_sequence)
+
         input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
                                         CyclingStream((self.input_size, 1), input_sequence, example_iterations)],
                                        [0, self_predict_phase_length])
