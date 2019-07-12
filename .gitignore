@@ -1,4 +1,4 @@
 .idea/
-datasets/
+datasets/mnist
 __pycache__/
 experiment_plots/
