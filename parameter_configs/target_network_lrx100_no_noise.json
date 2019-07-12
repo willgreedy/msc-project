@@ -12,7 +12,7 @@
     "dendritic_conductance": 1.0,
     "nudging_conductance": 0.8,
 
-    "background_noise_std": 0.0000003,
+    "background_noise_std": 0.0,
 
     "plastic_feedforward_weights": true,
     "plastic_predict_weights": true,
@@ -42,5 +42,5 @@
   "feedforward_learning_rates": [0.11875, 0.05],
   "predict_learning_rates": [0.11875],
   "interneuron_learning_rates": [0.59375],
-  "feedback_learning_rates": [0.0]
+  "feedback_learning_rates": [0.11875]
 }

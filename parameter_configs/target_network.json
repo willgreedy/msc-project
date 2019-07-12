@@ -42,5 +42,5 @@
   "feedforward_learning_rates": [0.0011875, 0.0005],
   "predict_learning_rates": [0.0011875],
   "interneuron_learning_rates": [0.0059375],
-  "feedback_learning_rates": [0.0]
+  "feedback_learning_rates": [0.0011875]
 }

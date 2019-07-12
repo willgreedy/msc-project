@@ -147,31 +147,51 @@ class ExperimentBuilder:
         else:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
-    def initialise_target_network_experiment(self, num_examples, example_iterations, self_predict_phase_length):
-        input_sequence = np.random.uniform(-1, 1, (num_examples, self.input_size))
-
-        np.save('./target_network_weights/' + self.experiment_name + '_input_sequence', input_sequence)
-
-        input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
-                                        CyclingStream((self.input_size, 1), input_sequence, example_iterations)],
-                                       [0, self_predict_phase_length])
-
-        # print(input_sequence)
+    def initialise_target_network_experiment(self, train_data_path, test_data_path, example_iterations,
+                                             self_predict_phase_length, training_phase_length, test_phase_length):
         transfer_function = create_transfer_function(self.dynamics['transfer_function'])
 
-        forward_weights_list = []
+        target_netork_forward_weights_list = []
         # forward_weights_list += [np.random.uniform(-1, 1, (30, 50))]
         # forward_weights_list += [np.random.uniform(-1, 1, (50, 10))]
-        forward_weights_list += [np.load('./target_network_weights/first_layer_feedforward_weights.npy').copy()]
-        forward_weights_list += [np.load('./target_network_weights/second_layer_feedforward_weights.npy').copy()]
-        print("Layer 1 weights: {}".format(forward_weights_list[0]))
-        print("Layer 2 weights: {}".format(forward_weights_list[1]))
-        output_sequence = compute_non_linear_transform(input_sequence, transfer_function, forward_weights_list)
+        target_netork_forward_weights_list += [np.load('./target_network_weights/first_layer_feedforward_weights.npy').copy()]
+        target_netork_forward_weights_list += [np.load('./target_network_weights/second_layer_feedforward_weights.npy').copy()]
+        print("Target Network layer 1 weights: {}".format(target_netork_forward_weights_list[0]))
+        print("Target Network layer 2 weights: {}".format(target_netork_forward_weights_list[1]))
 
-        output_stream = CompositeStream([NoneStream((self.output_size, 1)),
-                                         SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
-                                                                    example_iterations), 30)],
-                                        [0, self_predict_phase_length])
+        # input_sequence = np.random.uniform(-1, 1, (num_train_examples, self.input_size))
+        input_sequence = np.load(train_data_path)
+        output_sequence = compute_non_linear_transform(input_sequence, transfer_function,
+                                                       target_netork_forward_weights_list)
+
+        if test_phase_length > 0:
+            # test_input_sequence = np.random.uniform(-1, 1, (num_test_examples, self.input_size))
+            test_input_sequence = np.load(test_data_path)
+
+            test_output_sequence = compute_non_linear_transform(test_input_sequence, transfer_function,
+                                                                target_netork_forward_weights_list)
+
+            input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
+                                        CyclingStream((self.input_size, 1), input_sequence, example_iterations),
+                                        CyclingStream((self.input_size, 1), test_input_sequence, example_iterations)],
+                                       [0, self_predict_phase_length, self_predict_phase_length + training_phase_length])
+
+            output_stream = CompositeStream([NoneStream((self.output_size, 1)),
+                                             SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
+                                                                        example_iterations), 30),
+                                             SmoothStream(CyclingStream((self.output_size, 1), test_output_sequence,
+                                                                        example_iterations), 30)
+                                             ],
+                                            [0, self_predict_phase_length,
+                                             self_predict_phase_length + training_phase_length])
+        else:
+            input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
+                                            CyclingStream((self.input_size, 1), input_sequence, example_iterations)],
+                                           [0, self_predict_phase_length])
+            output_stream = CompositeStream([NoneStream((self.output_size, 1)),
+                                            SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
+                                                                       example_iterations), 30)],
+                                            [0, self_predict_phase_length])
 
         input_output_stream = InputOutputStream(input_stream, output_stream)
 
@@ -260,9 +280,12 @@ if __name__ == '__main__':
                         help='Number of iterations that each training example is presented for.')
 
     parser.add_argument('-model_file', default=None, help='Model file to load initial state from.')
-    parser.add_argument('-num_examples', type=int, help='Number of training examples to use.')
+    parser.add_argument('-train_data_path', type=str, help='Location of the training data.')
+    parser.add_argument('-test_data_path', type=str, default=None, help='Location of the test data.')
 
     args = parser.parse_args()
+
+    training_phase_length = args.num_epochs * args.num_epoch_iterations
 
     if len(input_args) > 0:
         experiment_name = input_args[0]
@@ -283,11 +306,12 @@ if __name__ == '__main__':
         experiment.initialise_xor_experiment(example_iterations=args.example_iterations,
                                              self_predict_phase_length=args.self_predict_phase_length)
     elif experiment_name.startswith('target_network'):
-        if args.num_examples is None:
-            raise Exception('Must provide number of examples given to target network.')
-        experiment.initialise_target_network_experiment(num_examples=args.num_examples,
+        experiment.initialise_target_network_experiment(train_data_path=args.train_data_path,
+                                                        test_data_path=args.test_data_path,
                                                         example_iterations=args.example_iterations,
-                                                        self_predict_phase_length=args.self_predict_phase_length)
+                                                        self_predict_phase_length=args.self_predict_phase_length,
+                                                        training_phase_length=training_phase_length,
+                                                        test_phase_length=args.test_phase_length)
     elif experiment_name.startswith('mnist'):
         experiment.initialise_mnist_experiment()
     else:

@@ -12,15 +12,17 @@
     "dendritic_conductance": 1.0,
     "nudging_conductance": 0.8,
 
-    "background_noise_std": 0.01,
+    "background_noise_std": 0.0000009,
 
     "plastic_feedforward_weights": true,
     "plastic_predict_weights": true,
     "plastic_interneuron_weights": true,
-    "plastic_feedback_weights": true,
+    "plastic_feedback_weights": false,
 
     "transfer_function": {
-      "type": "logistic"
+      "type": "soft-rectify",
+      "gamma": 0.1,
+      "beta": 1.0
     }
   },
 
@@ -31,13 +33,13 @@
   },
 
   "network_architecture":{
-    "input_size": 3,
-    "output_size": 1,
-    "layer_sizes": [3, 1]
+    "input_size": 30,
+    "output_size": 10,
+    "layer_sizes": [50, 10]
   },
 
-  "feedforward_learning_rates": [0.11875, 0.05],
-  "predict_learning_rates": [0.11875],
-  "interneuron_learning_rates": [0.59375],
-  "feedback_learning_rates": [0.11875]
+  "feedforward_learning_rates": [0.0011875, 0.0005],
+  "predict_learning_rates": [0.0011875],
+  "interneuron_learning_rates": [0.0059375],
+  "feedback_learning_rates": [0.011875]
 }
