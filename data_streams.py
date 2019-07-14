@@ -57,18 +57,17 @@ class SmoothStream(Stream):
         self.last_retrieved_iteration = 0
 
     def get(self, iteration_num):
-        if iteration_num >= self.last_retrieved_iteration:
-            curr_value = self.last_smoothed_value.copy()
-            for i in range(self.last_retrieved_iteration, iteration_num):
-                curr_value *= self.decay_factor
-                curr_value += (1 - self.decay_factor) * self.orig_stream.get(i)
-                self.last_smoothed_value = curr_value
-            self.last_retrieved_iteration = iteration_num
-            return self.last_smoothed_value
-        else:
+        if iteration_num < self.last_retrieved_iteration:
             self.last_smoothed_value = self.orig_stream.get(0)
             self.last_retrieved_iteration = 0
-            return self.get(iteration_num)
+
+        curr_value = self.last_smoothed_value.copy()
+        for i in range(self.last_retrieved_iteration, iteration_num):
+            curr_value *= self.decay_factor
+            curr_value += (1 - self.decay_factor) * self.orig_stream.get(i)
+            self.last_smoothed_value = curr_value
+        self.last_retrieved_iteration = iteration_num
+        return self.last_smoothed_value
 
 
 class NoneStream(Stream):
