@@ -60,6 +60,7 @@ def create_plot(monitor, save_location=None, close_plot=True):
             pickle.dump(fig, file)
 
     if close_plot:
+        fig.clear()
         plt.close(fig)
 
 
