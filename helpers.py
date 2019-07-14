@@ -1,5 +1,7 @@
-import numpy as np
+
 from abc import ABC, abstractmethod
+
+import numpy as np
 import matplotlib
 matplotlib.use('agg')
 from matplotlib import pyplot as plt
@@ -7,6 +9,7 @@ import pickle
 import pathlib
 import shutil
 import datetime
+
 
 def create_transfer_function(config):
     type = config['type']
@@ -28,14 +31,6 @@ def create_transfer_function(config):
         raise Exception("Invalid transfer function: {}".format(type))
     return transfer_fun
 
-
-def create_diff_plot(monitor1, monitor2):
-    iter_numbers, values1 = monitor1.get_values()
-    _, values2 = monitor2.get_values()
-    print("Creating diff plot with {} values.".format(len(values1)))
-    plt.figure()
-    plt.plot(iter_numbers, np.array(values1) - np.array(values2))
-    plt.title(monitor1.get_var_name() + "-" + monitor2.get_var_name())
 
 def create_plot(monitor, save_location=None, close_plot=True):
     iter_numbers, values = monitor.get_values()
@@ -62,6 +57,8 @@ def create_plot(monitor, save_location=None, close_plot=True):
     if close_plot:
         fig.clear()
         plt.close(fig)
+        del ax
+        del fig
 
 
 def remove_directory(location):

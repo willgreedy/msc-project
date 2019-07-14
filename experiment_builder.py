@@ -6,7 +6,7 @@ import pathlib
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, ConstantInitialiser, create_plot, create_diff_plot, visualise_mnist, \
+from helpers import UniformInitialiser, ConstantInitialiser, create_plot, visualise_mnist, \
     show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_directory
 from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimulator
 from data_streams import InputOutputStream, CompositeStream, ConstantStream, CyclingStream, MNISTInputOutputStream, \
@@ -161,7 +161,8 @@ class Experiment:
                                                 'sum_squares_error', self.dynamics,
                                                 update_frequency=self.monitor_frequency), 100000)]
 
-    def start_experiment(self, num_epochs, num_epoch_iterations, test_phase_length, resume_from_epoch=None):
+    def start_experiment(self, num_epochs, num_epoch_iterations, test_phase_length, resume_from_epoch=None,
+                         show_final_plots=False):
         state_save_folder = 'experiment_results/{}'.format(self.experiment_name)
 
         for i in range(num_epochs):
@@ -181,7 +182,9 @@ class Experiment:
         self.dynamics_simulator.set_testing_phase(True)
         self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
 
-        self.save_state(new_state_save_location=state_save_folder+'/test', show_generated_plots=True)
+        self.save_state(new_state_save_location=state_save_folder+'/test',
+                        prev_state_save_location=state_save_folder+'/epoch_{}'.format(num_epochs),
+                        show_generated_plots=show_final_plots)
 
     def save_state(self, new_state_save_location, prev_state_save_location=None,
                    show_generated_plots=False):
@@ -209,6 +212,7 @@ class Experiment:
         if resume_from_epoch is not None:
             state_folder = 'experiment_results/{}/epoch_{}'.format(self.experiment_name, resume_from_epoch)
             self.dynamics_simulator.set_iteration_number(resume_from_epoch * num_epoch_iterations)
+            del self.model
             self.model = load_model(state_folder + '/' + self.experiment_name + '.pkl')
             self.initialise_dynamics_simulator()
             resume_from_iterations = resume_from_epoch * num_epoch_iterations
@@ -327,6 +331,8 @@ if __name__ == '__main__':
     parser.add_argument('-test_data_path', type=str, default=None, help='Location of the test data.')
     parser.add_argument('-resume_from_epoch', type=int, default=None, help='Epoch to resume experiment from.')
 
+    parser.add_argument('-show_final_plots', type=bool, default=False, help='Whether to show the final plots at the end')
+
     args = parser.parse_args()
 
     if len(input_args) > 0:
@@ -378,4 +384,6 @@ if __name__ == '__main__':
     experiment.add_monitors()
     experiment.start_experiment(num_epochs=args.num_epochs, num_epoch_iterations=args.num_epoch_iterations,
                                 test_phase_length=args.test_phase_length,
-                                resume_from_epoch=args.resume_from_epoch)
+                                resume_from_epoch=args.resume_from_epoch,
+                                show_final_plots=args.show_final_plots)
+

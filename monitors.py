@@ -42,6 +42,8 @@ class Monitor(ABC):
             pickle.dump((monitor_iter_numbers, monitor_values), file)
 
     def clear_data(self):
+        del self.iter_numbers
+        del self.values
         self.iter_numbers = []
         self.values = []
 
