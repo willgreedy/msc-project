@@ -281,8 +281,8 @@ class ExperimentBuilder:
         # input_sequence = [[0.1, 0.1, 0.8], [0.1, 0.8, 0.8], [0.8, 0.1, 0.8], [0.8, 0.8, 0.8]]
         # output_sequence = [0.1, 0.8, 0.8, 0.1]
 
-        input_sequence = np.load(train_data_path + 'input_sequence')
-        output_sequence = np.load(train_data_path + 'output_sequence')
+        input_sequence = np.load(train_data_path + '/train_input_sequence_size{}.npy'.format(experiment.input_size))
+        output_sequence = np.load(train_data_path + '/train_output_sequence_size{}.npy'.format(experiment.output_size))
         # input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
 
         random_input_sequence = np.random.uniform(-1.0, 1.0, (500, experiment.input_size))
