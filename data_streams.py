@@ -57,7 +57,10 @@ class SmoothStream(Stream):
         self.last_retrieved_iteration = 0
 
     def get(self, iteration_num):
-        if iteration_num < self.last_retrieved_iteration:
+        if iteration_num - 50*self.time_constant_iters > self.last_retrieved_iteration:
+            self.last_retrieved_iteration = iteration_num - 50*self.time_constant_iters
+            self.last_smoothed_value = self.orig_stream.get(self.last_retrieved_iteration)
+        elif iteration_num < self.last_retrieved_iteration:
             self.last_smoothed_value = self.orig_stream.get(0)
             self.last_retrieved_iteration = 0
 
