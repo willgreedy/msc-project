@@ -37,8 +37,7 @@ def create_diff_plot(monitor1, monitor2):
     plt.plot(iter_numbers, np.array(values1) - np.array(values2))
     plt.title(monitor1.get_var_name() + "-" + monitor2.get_var_name())
 
-
-def create_plot(monitor, show=False, save_location=None, sub_directory=None):
+def create_plot(monitor, save_location=None, close_plot=True):
     iter_numbers, values = monitor.get_values()
     print("Creating plot with {} values.".format(len(values)))
     fig, ax = plt.subplots()
@@ -49,27 +48,23 @@ def create_plot(monitor, show=False, save_location=None, sub_directory=None):
         ax.set_ylim(y_range[0], y_range[1])
     ax.set_title(monitor.get_var_name())
     if save_location is not None:
-        if sub_directory is not None:
-            location = "experiment_plots/" + save_location + "/" + sub_directory + "/"
-        else:
-            location = "experiment_plots/" + save_location + "/"
         time = datetime.datetime.now().strftime("%I-%M%p %B%d")
-        filename = monitor.var_name + "_" + time
+        filename = '/{}'.format(monitor.get_name())
 
-        pathlib.Path(location).mkdir(parents=True, exist_ok=True)
-        fig.savefig(location + filename + ".pdf", bbox_inches='tight')
+        pathlib.Path(save_location).mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_location + filename + ".pdf", bbox_inches='tight')
 
-        plot_objects_location = location + 'plot_objects/'
+        plot_objects_location = save_location + '/plot_objects/'
         pathlib.Path(plot_objects_location).mkdir(parents=True, exist_ok=True)
         with open(plot_objects_location + filename + '.pkl', 'wb') as file:
             pickle.dump(fig, file)
 
-    if show is False:
+    if close_plot:
         plt.close(fig)
 
 
-def remove_plot_subdirectory(save_location, sub_directory):
-    location = pathlib.Path("experiment_plots/" + save_location + "/" + sub_directory + "/")
+def remove_directory(location):
+    location = pathlib.Path(location)
     shutil.rmtree(location, ignore_errors=True)
 
 
@@ -103,13 +98,13 @@ def compute_non_linear_transform(input_sequence, transfer_function, feedforward_
     return curr_values
 
 
-def load_model(name):
-    pkl_file = open('saved_models/' + name + '.pkl', 'rb')
+def load_model(location, name):
+    pkl_file = open(location + '/' + name + '.pkl', 'rb')
     return pickle.load(pkl_file)
 
 
-def save_model(name, model):
-    output = open('saved_models/' + name + '.pkl', 'wb')
+def save_model(save_location, name, model):
+    output = open(save_location + '/' + name + '.pkl', 'wb')
     pickle.dump(model, output)
 
 

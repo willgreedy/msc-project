@@ -9,7 +9,7 @@ class DynamicsSimulator(ABC):
     def __init__(self, model, input_output_stream, dynamics_parameters, monitors=list()):
         self.model = model
         self.input_output_stream = input_output_stream
-        self.iter_step = 0
+        self.iteration_number = 0
         self.dynamics_parameters = dynamics_parameters
         self.background_noise_std = dynamics_parameters['background_noise_std']
         self.transfer_function = create_transfer_function(dynamics_parameters['transfer_function'])
@@ -24,23 +24,29 @@ class DynamicsSimulator(ABC):
         self.testing_phase = False
 
     def run_simulation(self, max_iterations):
-        report_interval = int((max_iterations - self.iter_step) / 10)
+        report_interval = int((max_iterations - self.iteration_number) / 10)
 
-        while self.iter_step < max_iterations:
-            self.iter_step += 1
-            if self.iter_step % report_interval == 0:
-                print("Iteration {}.".format(self.iter_step))
+        while self.iteration_number < max_iterations:
+            self.iteration_number += 1
+            if self.iteration_number % report_interval == 0:
+                print("Iteration: {}.".format(self.iteration_number))
 
             self.step_simulation()
             for monitor in self.monitors:
-                if self.iter_step % monitor.get_update_frequency() == 0:
-                    monitor.update(self.iter_step)
+                if self.iteration_number % monitor.get_update_frequency() == 0:
+                    monitor.update(self.iteration_number)
 
     def set_testing_phase(self, testing_phase):
         self.testing_phase = testing_phase
 
-    def save_model(self, name):
-        save_model(name, self.model)
+    def save_model(self, save_location, name):
+        save_model(save_location, name, self.model)
+
+    def get_iteration_number(self):
+        return self.iteration_number
+
+    def set_iteration_number(self, iteration_number):
+        self.iteration_number = iteration_number
 
     @abstractmethod
     def step_simulation(self):
@@ -70,8 +76,8 @@ class StandardDynamicsSimulator(DynamicsSimulator):
         self.perform_updates()
 
     def compute_updates(self):
-        inputs = self.input_output_stream.get_inputs(self.iter_step)
-        output_targets = self.input_output_stream.get_output_targets(self.iter_step)
+        inputs = self.input_output_stream.get_inputs(self.iteration_number)
+        output_targets = self.input_output_stream.get_output_targets(self.iteration_number)
 
         layers = self.model.get_layers()
 

@@ -1,9 +1,13 @@
+from abc import ABC
 import sys
+import pickle
+import pathlib
+
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
 from helpers import UniformInitialiser, ConstantInitialiser, create_plot, create_diff_plot, visualise_mnist, \
-    show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_plot_subdirectory
+    show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_directory
 from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimulator
 from data_streams import InputOutputStream, CompositeStream, ConstantStream, CyclingStream, MNISTInputOutputStream, \
     SmoothStream, NoneStream
@@ -11,7 +15,7 @@ from monitors import MonitorBuilder, ExponentialAverageMonitor
 import argparse
 
 
-class ExperimentBuilder:
+class Experiment:
     def __init__(self, config, experiment_name, model_file=None):
         self.config = config
         self.experiment_name = experiment_name
@@ -60,96 +64,163 @@ class ExperimentBuilder:
 
         self.dynamics = self.config['dynamics']
         self.dynamics_simulator = None
+        self.input_output_stream = None
         self.monitors = []
-        self.monitor_frequency = 25
+        self.monitor_frequency = 100
 
-    def add_monitors(self):
-        self.monitors += [MonitorBuilder.create_weight_diff_monitor(self.model, 0, 'feedforward_predict_diff',
-                                                                    update_frequency=self.monitor_frequency)]
+    def set_input_output_stream(self, input_output_stream):
+        self.input_output_stream = input_output_stream
 
-        self.monitors += [MonitorBuilder.create_weight_diff_monitor(self.model, 0, 'feedback_interneuron_diff',
-                                                                    update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_angle_monitor(self.model, 0, 'feedforward_feedback_angle',
-                                                                     update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_angle_monitor(self.model, 0, 'feedforward_predict_angle',
-                                                                     update_frequency=self.monitor_frequency)]
-        self.monitors += [MonitorBuilder.create_weight_angle_monitor(self.model, 0, 'feedback_interneuron_angle',
-                                                                     update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedforward_weights", 0, 0, 0,
-                                                               update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedforward_weights", 1, 0, 0,
-                                                               update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "predict_weights", 0, 0, 0,
-                                                               update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "interneuron_weights", 0, 0, 0,
-                                                               update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_weight_monitor(self.model, "feedback_weights", 0, 0, 0,
-                                                               update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "pyramidal_basal", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "pyramidal_soma", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "pyramidal_apical", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "interneuron_basal", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 0, "interneuron_soma", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_pyramidal_basal_soma_rate_diff_monitor(self.model, 0, 0, self.dynamics,
-                                                                                       update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 1, "pyramidal_basal", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-        self.monitors += [MonitorBuilder.create_potential_monitor(self.model, 1, "pyramidal_soma", 0,
-                                                                  update_frequency=self.monitor_frequency)]
-
-    def initialise_xor_experiment(self, example_iterations, self_predict_phase_length):
-        input_sequence = [[0.1, 0.1, 0.8], [0.1, 0.8, 0.8], [0.8, 0.1, 0.8], [0.8, 0.8, 0.8]]
-        # input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
-        random_input_sequence = np.random.random((50, 3))
-        input_stream = CompositeStream([CyclingStream((self.input_size, 1), random_input_sequence, example_iterations),
-                                        CyclingStream((self.input_size, 1), input_sequence, example_iterations)],
-                                       [0, self_predict_phase_length])
-
-        output_sequence = [0.1, 0.8, 0.8, 0.1]
-        output_stream = CompositeStream([NoneStream((self.output_size, 1)),
-                                         SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
-                                                                    example_iterations), 30)],
-                                        [0, self_predict_phase_length])
-        input_output_stream = InputOutputStream(input_stream, output_stream)
-
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'input', 0,
-                                                             update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0,
-                                                             update_frequency=self.monitor_frequency)]
-
-        self.monitors += [ExponentialAverageMonitor(
-            MonitorBuilder.create_error_monitor(self.model, input_output_stream, 'sum_squares_error', self.dynamics,
-                                                update_frequency=self.monitor_frequency), 25000)]
-
+    def initialise_dynamics_simulator(self):
         if self.dynamics['type'] == 'standard':
-            self.dynamics_simulator = StandardDynamicsSimulator(self.model, input_output_stream, self.dynamics,
+            self.dynamics_simulator = StandardDynamicsSimulator(self.model, self.input_output_stream, self.dynamics,
                                                                 self.monitors)
         elif self.dynamics['type'] == 'simplified':
-            self.dynamics_simulator = SimplifiedDynamicsSimulator(self.model, input_output_stream, self.dynamics,
+            self.dynamics_simulator = SimplifiedDynamicsSimulator(self.model, self.input_output_stream, self.dynamics,
                                                                   self.monitors)
         else:
             raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
 
-    def initialise_target_network_experiment(self, train_data_path, test_data_path, example_iterations,
-                                             self_predict_phase_length, training_phase_length, test_phase_length):
-        transfer_function = create_transfer_function(self.dynamics['transfer_function'])
+    def add_monitors(self):
+        self.monitors += [MonitorBuilder.create_weight_diff_monitor('feedforward_predict_weight_difference',
+                                                                    self.model, 0, 'feedforward_predict_diff',
+                                                                    update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_diff_monitor('feedback_interneuron_weight_difference',
+                                                                    self.model, 0, 'feedback_interneuron_diff',
+                                                                    update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_angle_monitor('feedforward_feedback_weight_angle',
+                                                                     self.model, 0, 'feedforward_feedback_angle',
+                                                                     update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_angle_monitor('feedforward_predict_weight_angle',
+                                                                     self.model, 0, 'feedforward_predict_angle',
+                                                                     update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_weight_angle_monitor('feedback_interneuron_weight_angle',
+                                                                     self.model, 0, 'feedback_interneuron_angle',
+                                                                     update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor('individual_first_layer_feedforward_weight', self.model,
+                                                               'feedforward_weights', 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor('individual_second_layer_feedforward_weight', self.model,
+                                                               'feedforward_weights', 1, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor('individual_predict_weight', self.model,
+                                                               'predict_weights', 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor('individual_interneuron_weights', self.model,
+                                                               'interneuron_weights', 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_weight_monitor('individual_feedback_weights', self.model,
+                                                               'feedback_weights', 0, 0, 0,
+                                                               update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_first_layer_pyramidal_basal_potential',
+                                                                  self.model, 0, 'pyramidal_basal', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_first_layer_pyramidal_soma_potential',
+                                                                  self.model, 0, 'pyramidal_soma', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_first_layer_pyramidal_apical_potential',
+                                                                  self.model, 0, 'pyramidal_apical', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_first_layer_interneuron_basal_potential',
+                                                                  self.model, 0, 'interneuron_basal', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_first_layer_interneuron_soma_potential',
+                                                                  self.model, 0, 'interneuron_soma', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+
+        # self.monitors += [MonitorBuilder.create_pyramidal_basal_soma_rate_diff_monitor('', self.model, 0, 0,
+        #                                                                               self.dynamics,
+        #                                                                               update_frequency=
+        #                                                                               self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_second_layer_pyramidal_basal_potential',
+                                                                  self.model, 1, 'pyramidal_basal', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+        self.monitors += [MonitorBuilder.create_potential_monitor('individual_second_layer_pyramidal_soma_potential',
+                                                                  self.model, 1, 'pyramidal_soma', 0,
+                                                                  update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_data_monitor('individual_input', self.input_output_stream, 'input', 0,
+                                                             update_frequency=self.monitor_frequency)]
+
+        self.monitors += [MonitorBuilder.create_data_monitor('individual_target', self.input_output_stream, 'target', 0,
+                                                             update_frequency=self.monitor_frequency)]
+
+        self.monitors += [ExponentialAverageMonitor(
+            MonitorBuilder.create_error_monitor('sum_squares_error', self.model, self.input_output_stream,
+                                                'sum_squares_error', self.dynamics,
+                                                update_frequency=self.monitor_frequency), 100000)]
+
+    def start_experiment(self, num_epochs, num_epoch_iterations, test_phase_length, resume_from_epoch=None):
+        state_save_folder = 'experiment_results/{}'.format(self.experiment_name)
+
+        for i in range(num_epochs):
+            epoch_index = i + 1
+            if resume_from_epoch is not None and epoch_index <= resume_from_epoch:
+                continue
+            self.dynamics_simulator.run_simulation(num_epoch_iterations * epoch_index)
+            new_state_save_location = state_save_folder+'/epoch_{}'.format(epoch_index)
+            if epoch_index > 1:
+                prev_state_save_location = state_save_folder+'/epoch_{}'.format(epoch_index - 1)
+                self.save_state(new_state_save_location=new_state_save_location,
+                                prev_state_save_location=prev_state_save_location)
+                remove_directory(location=prev_state_save_location)
+            else:
+                self.save_state(new_state_save_location=new_state_save_location)
+
+        self.dynamics_simulator.set_testing_phase(True)
+        self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
+
+        self.save_state(new_state_save_location=state_save_folder+'/test', show_generated_plots=True)
+
+    def save_state(self, new_state_save_location, prev_state_save_location=None,
+                   show_generated_plots=False):
+        monitor_save_location = '{}/monitors'.format(new_state_save_location)
+        pathlib.Path(monitor_save_location).mkdir(parents=True, exist_ok=True)
+
+        for monitor in self.monitors:
+            monitor_name = monitor.get_name()
+
+            if prev_state_save_location is not None:
+                prev_monitor_save_location = '{}/monitors/{}.pkl'.format(prev_state_save_location, monitor_name)
+                monitor.prepend_data(prev_monitor_save_location)
+
+            create_plot(monitor=monitor, save_location=new_state_save_location, close_plot=not show_generated_plots)
+
+            new_monitor_save_location = '{}/{}.pkl'.format(monitor_save_location, monitor_name)
+            monitor.save_data(new_monitor_save_location)
+            monitor.clear_data()
+
+        self.dynamics_simulator.save_model(save_location=new_state_save_location, name=self.experiment_name)
+        if show_generated_plots:
+            show_plots()
+
+    def load_state(self, resume_from_epoch, num_epoch_iterations):
+        if resume_from_epoch is not None:
+            state_folder = 'experiment_results/{}/epoch_{}'.format(self.experiment_name, resume_from_epoch)
+            self.dynamics_simulator.set_iteration_number(resume_from_epoch * num_epoch_iterations)
+            self.model = load_model(state_folder, self.experiment_name)
+            self.initialise_dynamics_simulator()
+            resume_from_iterations = resume_from_epoch * num_epoch_iterations
+            self.dynamics_simulator.set_iteration_number(resume_from_iterations)
+
+
+class ExperimentBuilder:
+    @staticmethod
+    def create_target_network_experiment(config, experiment_name, train_data_path, test_data_path, example_iterations,
+                 self_predict_phase_length, training_phase_length, test_phase_length, model_file=None):
+        experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
+        transfer_function = create_transfer_function(experiment.dynamics['transfer_function'])
 
         target_netork_forward_weights_list = []
         # forward_weights_list += [np.random.uniform(-1, 1, (30, 50))]
@@ -171,93 +242,65 @@ class ExperimentBuilder:
             test_output_sequence = compute_non_linear_transform(test_input_sequence, transfer_function,
                                                                 target_netork_forward_weights_list)
 
-            input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
-                                        CyclingStream((self.input_size, 1), input_sequence, example_iterations),
-                                        CyclingStream((self.input_size, 1), test_input_sequence, example_iterations)],
+            input_stream = CompositeStream([CyclingStream((experiment.input_size, 1), input_sequence, example_iterations),
+                                        CyclingStream((experiment.input_size, 1), input_sequence, example_iterations),
+                                        CyclingStream((experiment.input_size, 1), test_input_sequence, example_iterations)],
                                        [0, self_predict_phase_length, self_predict_phase_length + training_phase_length])
 
-            output_stream = CompositeStream([NoneStream((self.output_size, 1)),
-                                             SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
+            output_stream = CompositeStream([NoneStream((experiment.output_size, 1)),
+                                             SmoothStream(CyclingStream((experiment.output_size, 1), output_sequence,
                                                                         example_iterations), 30),
-                                             SmoothStream(CyclingStream((self.output_size, 1), test_output_sequence,
+                                             SmoothStream(CyclingStream((experiment.output_size, 1), test_output_sequence,
                                                                         example_iterations), 30)
                                              ],
                                             [0, self_predict_phase_length,
                                              self_predict_phase_length + training_phase_length])
         else:
-            input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
-                                            CyclingStream((self.input_size, 1), input_sequence, example_iterations)],
+            input_stream = CompositeStream([CyclingStream((experiment.input_size, 1), input_sequence, example_iterations),
+                                            CyclingStream((experiment.input_size, 1), input_sequence, example_iterations)],
                                            [0, self_predict_phase_length])
-            output_stream = CompositeStream([NoneStream((self.output_size, 1)),
-                                            SmoothStream(CyclingStream((self.output_size, 1), output_sequence,
+            output_stream = CompositeStream([NoneStream((experiment.output_size, 1)),
+                                            SmoothStream(CyclingStream((experiment.output_size, 1), output_sequence,
                                                                        example_iterations), 30)],
                                             [0, self_predict_phase_length])
 
-        input_output_stream = InputOutputStream(input_stream, output_stream)
+        experiment.set_input_output_stream(InputOutputStream(input_stream, output_stream))
+        experiment.initialise_dynamics_simulator()
+        return experiment
 
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'input', 0,
-                                                             update_frequency=self.monitor_frequency)]
+    @staticmethod
+    def create_xor_experiment(config, experiment_name, train_data_path, example_iterations,
+                 self_predict_phase_length, model_file=None):
+        experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
+        # input_sequence = [[0.1, 0.1, 0.8], [0.1, 0.8, 0.8], [0.8, 0.1, 0.8], [0.8, 0.8, 0.8]]
+        # output_sequence = [0.1, 0.8, 0.8, 0.1]
 
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0,
-                                                             update_frequency=self.monitor_frequency)]
+        input_sequence = np.load(train_data_path + 'input_sequence')
+        output_sequence = np.load(train_data_path + 'output_sequence')
+        # input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
 
-        self.monitors += [ExponentialAverageMonitor(
-            MonitorBuilder.create_error_monitor(self.model, input_output_stream, 'sum_squares_error', self.dynamics,
-                                                update_frequency=self.monitor_frequency), 25000)]
+        random_input_sequence = np.random.uniform(-1.0, 1.0, (500, experiment.input_size))
+        input_stream = CompositeStream([CyclingStream((experiment.input_size, 1), random_input_sequence, example_iterations),
+                                        CyclingStream((experiment.input_size, 1), input_sequence, example_iterations)],
+                                       [0, self_predict_phase_length])
 
-        if self.dynamics['type'] == 'standard':
-            self.dynamics_simulator = StandardDynamicsSimulator(self.model, input_output_stream, self.dynamics,
-                                                                self.monitors)
-        elif self.dynamics['type'] == 'simplified':
-            self.dynamics_simulator = SimplifiedDynamicsSimulator(self.model, input_output_stream, self.dynamics,
-                                                                  self.monitors)
-        else:
-            raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
+        output_stream = CompositeStream([NoneStream((experiment.output_size, 1)),
+                                         SmoothStream(CyclingStream((experiment.output_size, 1), output_sequence,
+                                                                    example_iterations), 30)],
+                                        [0, self_predict_phase_length])
+        experiment.set_input_output_stream(InputOutputStream(input_stream, output_stream))
+        experiment.initialise_dynamics_simulator()
+        return experiment
 
-    def initialise_mnist_experiment(self):
-        input_output_stream = MNISTInputOutputStream('mnist/train_images.idx3-ubyte', 'train_labels.idx1-ubyte', 55000)
+    @staticmethod
+    def create_mnist_experiment(config, experiment_name, train_data_path, training_phase_length, model_file=None):
+        experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
 
-        transfer_function = create_transfer_function(self.dynamics['transfer_function'])
-
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'input', 0,
-                                                             update_frequency=self.monitor_frequency)]
-
-        self.monitors += [MonitorBuilder.create_data_monitor(input_output_stream, 'target', 0,
-                                                             update_frequency=self.monitor_frequency)]
-
-        self.monitors += [ExponentialAverageMonitor(
-            MonitorBuilder.create_error_monitor(self.model, input_output_stream, 'sum_squares_error',
-                                                update_frequency=self.monitor_frequency), 50000)]
-
-        if self.dynamics['type'] == 'standard':
-            self.dynamics_simulator = StandardDynamicsSimulator(self.model, input_output_stream, self.dynamics,
-                                                                self.monitors)
-        elif self.dynamics['type'] == 'simplified':
-            self.dynamics_simulator = SimplifiedDynamicsSimulator(self.model, input_output_stream, self.dynamics,
-                                                                  self.monitors)
-        else:
-            raise Exception("Invalid dynamics type: {}".format({self.dynamics['type']}))
-
-    def start_experiment(self, num_epochs, num_epoch_iterations, test_phase_length):
-        for i in range(num_epochs):
-            epoch_index = i + 1
-            self.dynamics_simulator.run_simulation(num_epoch_iterations * epoch_index)
-            self.plot_monitors(show=False, sub_directory='epoch_{}'.format(epoch_index))
-            if epoch_index > 1:
-                remove_plot_subdirectory(save_location=self.experiment_name,
-                                         sub_directory='epoch_{}'.format(epoch_index - 1))
-
-        self.dynamics_simulator.set_testing_phase(True)
-        self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
-
-        self.dynamics_simulator.save_model(self.experiment_name)
-        self.plot_monitors(show=True, sub_directory='test')
-
-    def plot_monitors(self, show=False, sub_directory=None):
-        for monitor in self.monitors:
-            create_plot(monitor, show, save_location=self.experiment_name, sub_directory=sub_directory)
-
-        show_plots()
+        experiment.set_input_output_stream(MNISTInputOutputStream(train_data_path+'train_images.idx3-ubyte',
+                                                                  train_data_path+'train_labels.idx1-ubyte',
+                                                                  training_phase_length))
+        experiment.initialise_dynamics_simulator()
+        return experiment
 
 
 if __name__ == '__main__':
@@ -282,10 +325,9 @@ if __name__ == '__main__':
     parser.add_argument('-model_file', default=None, help='Model file to load initial state from.')
     parser.add_argument('-train_data_path', type=str, help='Location of the training data.')
     parser.add_argument('-test_data_path', type=str, default=None, help='Location of the test data.')
+    parser.add_argument('-resume_from_epoch', type=int, default=None, help='Epoch to resume experiment from.')
 
     args = parser.parse_args()
-
-    training_phase_length = args.num_epochs * args.num_epoch_iterations
 
     if len(input_args) > 0:
         experiment_name = input_args[0]
@@ -299,25 +341,41 @@ if __name__ == '__main__':
         print("Using default parameter configuration.")
         parameter_config = ParameterConfig()
 
-    experiment = ExperimentBuilder(parameter_config, experiment_name, model_file=args.model_file)
-    experiment.add_monitors()
+    training_phase_length = args.num_epochs * args.num_epoch_iterations
 
     if experiment_name.startswith('xor'):
-        experiment.initialise_xor_experiment(example_iterations=args.example_iterations,
-                                             self_predict_phase_length=args.self_predict_phase_length)
+        experiment = ExperimentBuilder.create_xor_experiment(config=parameter_config,
+                                                             experiment_name=experiment_name,
+                                                             train_data_path=args.train_data_path,
+                                                             example_iterations=args.example_iterations,
+                                                             self_predict_phase_length=args.self_predict_phase_length,
+                                                             model_file=args.model_file)
+
     elif experiment_name.startswith('target_network'):
-        experiment.initialise_target_network_experiment(train_data_path=args.train_data_path,
-                                                        test_data_path=args.test_data_path,
-                                                        example_iterations=args.example_iterations,
-                                                        self_predict_phase_length=args.self_predict_phase_length,
-                                                        training_phase_length=training_phase_length,
-                                                        test_phase_length=args.test_phase_length)
+        experiment = ExperimentBuilder.create_target_network_experiment(config=parameter_config,
+                                                                        experiment_name=experiment_name,
+                                                                        train_data_path=args.train_data_path,
+                                                                        test_data_path=args.test_data_path,
+                                                                        example_iterations=args.example_iterations,
+                                                                        self_predict_phase_length=
+                                                                        args.self_predict_phase_length,
+                                                                        training_phase_length=training_phase_length,
+                                                                        test_phase_length=args.test_phase_length,
+                                                                        model_file=args.model_file)
+
     elif experiment_name.startswith('mnist'):
-        experiment.initialise_mnist_experiment()
+        experiment = ExperimentBuilder.create_mnist_experiment(config=parameter_config,
+                                                               experiment_name=experiment_name,
+                                                               train_data_path=args.train_data_path,
+                                                               training_phase_length=training_phase_length,
+                                                               model_file=args.model_file)
     else:
         raise Exception("Invalid experiment name: {}".format(experiment_name))
-    # import atexit
-    # atexit.register(experiment.plot_monitors)
 
+    if args.resume_from_epoch is not None:
+        experiment.load_state(resume_from_epoch=args.resume_from_epoch,
+                              num_epoch_iterations=args.num_epoch_iterations)
+    experiment.add_monitors()
     experiment.start_experiment(num_epochs=args.num_epochs, num_epoch_iterations=args.num_epoch_iterations,
-                                test_phase_length=args.test_phase_length)
+                                test_phase_length=args.test_phase_length,
+                                resume_from_epoch=args.resume_from_epoch)

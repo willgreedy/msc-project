@@ -12,7 +12,7 @@
     "dendritic_conductance": 1.0,
     "nudging_conductance": 0.8,
 
-    "background_noise_std": 0.1,
+    "background_noise_std": 0.15,
 
     "plastic_feedforward_weights": true,
     "plastic_predict_weights": true,
