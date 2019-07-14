@@ -98,8 +98,8 @@ def compute_non_linear_transform(input_sequence, transfer_function, feedforward_
     return curr_values
 
 
-def load_model(location, name):
-    pkl_file = open(location + '/' + name + '.pkl', 'rb')
+def load_model(location):
+    pkl_file = open(location, 'rb')
     return pickle.load(pkl_file)
 
 

@@ -209,7 +209,7 @@ class Experiment:
         if resume_from_epoch is not None:
             state_folder = 'experiment_results/{}/epoch_{}'.format(self.experiment_name, resume_from_epoch)
             self.dynamics_simulator.set_iteration_number(resume_from_epoch * num_epoch_iterations)
-            self.model = load_model(state_folder, self.experiment_name)
+            self.model = load_model(state_folder + '/' + self.experiment_name + '.pkl')
             self.initialise_dynamics_simulator()
             resume_from_iterations = resume_from_epoch * num_epoch_iterations
             self.dynamics_simulator.set_iteration_number(resume_from_iterations)
