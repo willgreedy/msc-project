@@ -3,6 +3,8 @@ import sys
 import pickle
 import pathlib
 
+import gc
+
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
@@ -178,6 +180,7 @@ class Experiment:
                 remove_directory(location=prev_state_save_location)
             else:
                 self.save_state(new_state_save_location=new_state_save_location)
+            gc.collect()
 
         self.dynamics_simulator.set_testing_phase(True)
         self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
