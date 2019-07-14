@@ -4,6 +4,11 @@ import numpy as np
 from helpers import create_transfer_function
 import pickle
 
+import matplotlib
+matplotlib.use('agg')
+from matplotlib import pyplot as plt
+import pathlib
+
 
 class Monitor(ABC):
     def __init__(self, monitor_name, var_name, plot_range=None, update_frequency=1):
@@ -14,6 +19,30 @@ class Monitor(ABC):
 
         self.iter_numbers = []
         self.values = []
+
+        self.plot_fig, self.plot_ax = plt.subplots()
+
+    def plot_values(self, save_location=None):
+        iter_numbers, values = self.get_values()
+
+        print("Creating plot with {} values.".format(len(values)))
+        self.plot_ax.plot(iter_numbers, values)
+        self.plot_ax.set_xlim(iter_numbers[0], iter_numbers[-1])
+        y_range = self.get_plot_range()
+        if y_range is not None:
+            self.plot_ax.set_ylim(y_range[0], y_range[1])
+        self.plot_ax.set_title(self.get_var_name())
+        if save_location is not None:
+            filename = '/{}'.format(self.get_name())
+
+            pathlib.Path(save_location).mkdir(parents=True, exist_ok=True)
+            self.plot_fig.savefig(save_location + filename + ".pdf", bbox_inches='tight')
+
+            plot_objects_location = save_location + '/plot_objects/'
+            pathlib.Path(plot_objects_location).mkdir(parents=True, exist_ok=True)
+            with open(plot_objects_location + filename + '.pkl', 'wb') as file:
+                pickle.dump(self.plot_fig, file)
+        self.plot_ax.clear()
 
     def get_name(self):
         return self.monitor_name

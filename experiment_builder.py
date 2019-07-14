@@ -201,7 +201,7 @@ class Experiment:
                 prev_monitor_save_location = '{}/monitors/{}.pkl'.format(prev_state_save_location, monitor_name)
                 monitor.prepend_data(prev_monitor_save_location)
 
-            create_plot(monitor=monitor, save_location=new_state_save_location, close_plot=not show_generated_plots)
+            monitor.plot_values(save_location=new_state_save_location)#, close_plot=not show_generated_plots)
 
             new_monitor_save_location = '{}/{}.pkl'.format(monitor_save_location, monitor_name)
             monitor.save_data(new_monitor_save_location)
@@ -334,7 +334,8 @@ if __name__ == '__main__':
     parser.add_argument('-test_data_path', type=str, default=None, help='Location of the test data.')
     parser.add_argument('-resume_from_epoch', type=int, default=None, help='Epoch to resume experiment from.')
 
-    parser.add_argument('-show_final_plots', type=bool, default=False, help='Whether to show the final plots at the end')
+    parser.add_argument('-show_final_plots', type=bool, default=False,
+                        help='Show the final plots at the end.')
 
     args = parser.parse_args()
 

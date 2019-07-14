@@ -43,7 +43,6 @@ def create_plot(monitor, save_location=None, close_plot=True):
         ax.set_ylim(y_range[0], y_range[1])
     ax.set_title(monitor.get_var_name())
     if save_location is not None:
-        time = datetime.datetime.now().strftime("%I-%M%p %B%d")
         filename = '/{}'.format(monitor.get_name())
 
         pathlib.Path(save_location).mkdir(parents=True, exist_ok=True)
