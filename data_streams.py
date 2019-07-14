@@ -41,7 +41,8 @@ class CompositeStream(Stream):
         # Loop backwards through the list of starting indices
         for i, start_index in list(zip(range(len(self.start_indices)), self.start_indices))[::-1]:
             if iteration_num >= start_index:
-                return self.stream_list[i].get(iteration_num - start_index)
+                stream = self.stream_list[i]
+                return stream.get(iteration_num - start_index)
         raise Exception("Stream index out of bounds: {}".format(iteration_num))
 
 
@@ -52,17 +53,22 @@ class SmoothStream(Stream):
         self.time_constant_iters = time_constant_iters
         self.decay_factor = np.exp(-1.0 / time_constant_iters)
 
-        self.smoothed_values = [orig_stream.get(0)]
+        self.last_smoothed_value = orig_stream.get(0)
+        self.last_retrieved_iteration = 0
 
     def get(self, iteration_num):
-        if iteration_num >= len(self.smoothed_values):
-            curr_value = self.smoothed_values[-1]
-            for i in range(len(self.smoothed_values)-1, iteration_num):
-                curr_value = self.decay_factor * curr_value + (1 - self.decay_factor) * self.orig_stream.get(i)
-                self.smoothed_values += [curr_value]
-
-        return self.smoothed_values[iteration_num]
-
+        if iteration_num > self.last_retrieved_iteration:
+            curr_value = self.last_smoothed_value.copy()
+            for i in range(self.last_retrieved_iteration, iteration_num):
+                curr_value *= self.decay_factor
+                curr_value += (1 - self.decay_factor) * self.orig_stream.get(i)
+                self.last_smoothed_value = curr_value
+            self.last_retrieved_iteration = iteration_num
+            return self.last_smoothed_value
+        else:
+            self.last_smoothed_value = self.orig_stream.get(0)
+            self.last_retrieved_iteration = 0
+            return self.get(iteration_num)
 
 class NoneStream(Stream):
     def __init__(self, shape):

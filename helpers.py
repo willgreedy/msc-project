@@ -8,7 +8,6 @@ from matplotlib import pyplot as plt
 import pickle
 import pathlib
 import shutil
-import datetime
 
 
 def create_transfer_function(config):
@@ -19,8 +18,8 @@ def create_transfer_function(config):
         theta = config['theta'] if 'theta' in config else 0.0
 
         def transfer_fun(u):
-            result = beta * (u - theta)
-            result[result < 500.0] = gamma * np.log(1.0 + np.exp(result[result<500.0]))
+            result = beta * (u.copy() - theta)
+            result[result < 500.0] = gamma * np.log(1.0 + np.exp(result[result < 500.0]))
             return result
 
     elif type == 'logistic':
@@ -30,34 +29,6 @@ def create_transfer_function(config):
     else:
         raise Exception("Invalid transfer function: {}".format(type))
     return transfer_fun
-
-
-def create_plot(monitor, save_location=None, close_plot=True):
-    iter_numbers, values = monitor.get_values()
-    print("Creating plot with {} values.".format(len(values)))
-    fig, ax = plt.subplots()
-    ax.plot(iter_numbers, values)
-    ax.set_xlim(iter_numbers[0], iter_numbers[-1])
-    y_range = monitor.get_plot_range()
-    if y_range is not None:
-        ax.set_ylim(y_range[0], y_range[1])
-    ax.set_title(monitor.get_var_name())
-    if save_location is not None:
-        filename = '/{}'.format(monitor.get_name())
-
-        pathlib.Path(save_location).mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_location + filename + ".pdf", bbox_inches='tight')
-
-        plot_objects_location = save_location + '/plot_objects/'
-        pathlib.Path(plot_objects_location).mkdir(parents=True, exist_ok=True)
-        with open(plot_objects_location + filename + '.pkl', 'wb') as file:
-            pickle.dump(fig, file)
-
-    if close_plot:
-        fig.clear()
-        plt.close(fig)
-        del ax
-        del fig
 
 
 def remove_directory(location):

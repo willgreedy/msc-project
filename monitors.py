@@ -64,6 +64,8 @@ class Monitor(ABC):
             prev_monitor_iter_numbers, prev_monitor_values = pickle.load(file)
         self.iter_numbers = prev_monitor_iter_numbers + self.iter_numbers
         self.values = prev_monitor_values + self.values
+        del prev_monitor_iter_numbers
+        del prev_monitor_values
 
     def save_data(self, new_monitor_save_location):
         with open(new_monitor_save_location, 'wb') as file:

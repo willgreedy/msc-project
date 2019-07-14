@@ -8,7 +8,7 @@ import gc
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, ConstantInitialiser, create_plot, visualise_mnist, \
+from helpers import UniformInitialiser, ConstantInitialiser, visualise_mnist, \
     show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_directory
 from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimulator
 from data_streams import InputOutputStream, CompositeStream, ConstantStream, CyclingStream, MNISTInputOutputStream, \
@@ -180,7 +180,6 @@ class Experiment:
                 remove_directory(location=prev_state_save_location)
             else:
                 self.save_state(new_state_save_location=new_state_save_location)
-            gc.collect()
 
         self.dynamics_simulator.set_testing_phase(True)
         self.dynamics_simulator.run_simulation(num_epochs * num_epoch_iterations + test_phase_length)
