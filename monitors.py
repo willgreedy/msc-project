@@ -253,6 +253,82 @@ class MonitorBuilder:
         return GenericMonitor(monitor_name, var_name, get_weight, update_frequency=update_frequency)
 
     @staticmethod
+    def create_weight_layer_monitor(monitor_name, model, weight_type, layer_num, operation, update_frequency=1):
+        valid_weight_types = ["feedforward_weights", "predict_weights", "interneuron_weights",
+                              "feedback_weights"]
+
+        if weight_type not in valid_weight_types:
+            raise Exception("Invalid weight type given to monitor {}. Must be one of: {}".format(weight_type,
+                                                                                                 valid_weight_types))
+
+        var_name = "Average {} in layer {}".format(weight_type, layer_num)
+
+        layers = model.get_layers()
+        _, layer = layers[layer_num]
+
+        if weight_type == "feedforward_weights":
+            weights = layer.get_feedforward_weights()
+        elif weight_type == "predict_weights":
+            weights = layer.get_predict_weights()
+        elif weight_type == "interneuron_weights":
+            weights = layer.get_interneuron_weights()
+        elif weight_type == "feedback_weights":
+            weights = layer.get_feedback_weights()
+        else:
+            raise Exception("Fatal Error")
+
+        if operation == 'mean':
+            def get_weight_operation_value(iter_number):
+                value = float(np.mean(weights))
+                return value
+        elif operation == 'std':
+            def get_weight_operation_value(iter_number):
+                value = float(np.std(weights))
+                return value
+        elif operation == 'mean-magnitude':
+            def get_weight_operation_value(iter_number):
+                value = float(np.mean(np.abs(weights)))
+                return value
+        elif operation == 'std-magnitude':
+            def get_weight_operation_value(iter_number):
+                value = float(np.std(np.abs(weights)))
+                return value
+
+        return GenericMonitor(monitor_name, var_name, get_weight_operation_value, update_frequency=update_frequency)
+
+    @staticmethod
+    def create_weight_variance_monitor(monitor_name, model, weight_type, layer_num, update_frequency=1):
+        valid_weight_types = ["feedforward_weights", "predict_weights", "interneuron_weights",
+                              "feedback_weights"]
+
+        if weight_type not in valid_weight_types:
+            raise Exception("Invalid weight type given to monitor {}. Must be one of: {}".format(weight_type,
+                                                                                                 valid_weight_types))
+
+        var_name = "Average {} in layer {}".format(weight_type, layer_num)
+
+        layers = model.get_layers()
+        _, layer = layers[layer_num]
+
+        if weight_type == "feedforward_weights":
+            weights = layer.get_feedforward_weights()
+        elif weight_type == "predict_weights":
+            weights = layer.get_predict_weights()
+        elif weight_type == "interneuron_weights":
+            weights = layer.get_interneuron_weights()
+        elif weight_type == "feedback_weights":
+            weights = layer.get_feedback_weights()
+        else:
+            raise Exception("Fatal Error")
+
+        def get_weight_average(iter_number):
+            value = float(np.mean(weights))
+            return value
+
+        return GenericMonitor(monitor_name, var_name, get_weight_average, update_frequency=update_frequency)
+
+
+    @staticmethod
     def create_weight_diff_monitor(monitor_name, model, layer_num, weight_type, update_frequency=1):
         layers = model.get_layers()
         _, layer = layers[layer_num]

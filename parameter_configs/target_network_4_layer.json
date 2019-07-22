@@ -1,0 +1,46 @@
+{
+  "dynamics":{
+    "type": "standard",
+    "ms_per_time_step": 0.1,
+    "weight_time_constant_ms": 30,
+
+    "resting_potential": 0,
+
+    "leak_conductance": 0.1,
+    "apical_conductance": 0.8,
+    "basal_conductance": 1.0,
+    "dendritic_conductance": 1.0,
+    "nudging_conductance": 0.8,
+
+    "background_noise_std": 0.3,
+
+    "plastic_feedforward_weights": true,
+    "plastic_predict_weights": true,
+    "plastic_interneuron_weights": true,
+    "plastic_feedback_weights": false,
+
+    "transfer_function": {
+      "type": "soft-rectify",
+      "gamma": 0.1,
+      "beta": 1.0,
+      "theta": 3.0
+    }
+  },
+
+  "weight_intialisation":{
+    "type": "uniform",
+    "lower_bound": -2.0,
+    "upper_bound": 2.0
+  },
+
+  "network_architecture":{
+    "input_size": 20,
+    "output_size": 10,
+    "layer_sizes": [20, 20, 10]
+  },
+
+  "feedforward_learning_rates": [0.10, 0.05, 0.025],
+  "predict_learning_rates": [0.10, 0.05],
+  "interneuron_learning_rates": [0.50, 0.25],
+  "feedback_learning_rates": [0.10, 0.05]
+}
