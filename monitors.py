@@ -454,6 +454,16 @@ class MonitorBuilder:
                     output_rate = transfer_function(last_layer.get_pyramidal_somatic_potentials())
                     error = np.sum((target_rate - output_rate)**2)
                     return float(error)
+        elif error_type == 'sum_squares_potential_error':
+            def get_error(num_iters):
+                target = input_output_stream.get_output_targets(num_iters)
+                if target is None:
+                    return None
+                else:
+                    target_potential = target
+                    output_potential = last_layer.get_pyramidal_somatic_potentials()
+                    error = np.sum((target_potential - output_potential)**2)
+                    return float(error)
         else:
             raise Exception('Invalid error type {}'.format(error_type))
 
