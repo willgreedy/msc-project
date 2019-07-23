@@ -10,7 +10,7 @@
     "apical_conductance": 0.8,
     "basal_conductance": 1.0,
     "dendritic_conductance": 1.0,
-    "nudging_conductance": 0.8,
+    "nudging_conductance": 0.6,
 
     "background_noise_std": 0.3,
 

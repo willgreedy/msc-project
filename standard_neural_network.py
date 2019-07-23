@@ -10,7 +10,7 @@ import numpy as np
 transfer_function_config = {'type': 'soft-rectify',
                             'gamma': 0.1,
                             'beta': 1.0,
-                            'theta': 3.0}
+                            'theta': 1.0}
 
 
 class SoftRectifyTransferFunction(nn.Module):
@@ -18,7 +18,7 @@ class SoftRectifyTransferFunction(nn.Module):
         super().__init__()
         self.gamma = config['gamma'] if 'gamma' in config else 1.0
         self.beta = config['beta'] if 'beta' in config else 1.0
-        self.theta = config['theta'] if 'theta' in config else 0.0
+        self.theta = config['theta'] if 'theta' in config else 1.0
 
     def forward(self, u):
         inner_vals = self.beta * (u - self.theta)
@@ -72,28 +72,28 @@ class MSERateLoss(nn.Module):
 transfer_function = create_transfer_function(config=transfer_function_config)
 
 target_network_train_dataset = TargetNetworkDataset(
-    input_sequence_data_path='./datasets/target_network/train_input_sequence_size30_examples500.npy',
-    target_network_weights_path='./target_network_weights/3_layer_sf_2x10/',
+    input_sequence_data_path='./datasets/target_network/train_input_sequence_size20_examples500.npy',
+    target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
     transfer_function=transfer_function)
 
 target_network_test_dataset = TargetNetworkDataset(
-    input_sequence_data_path='./datasets/target_network/test_input_sequence_size30_examples500.npy',
-    target_network_weights_path='./target_network_weights/3_layer_sf_2x10/',
+    input_sequence_data_path='./datasets/target_network/test_input_sequence_size20_examples500.npy',
+    target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
     transfer_function=transfer_function)
 
 activation_function = SoftRectifyTransferFunction(config=transfer_function_config)
 
-model = nn.Sequential(OrderedDict([
-                      ('fc1', nn.Linear(30, 50, bias=False)),
-                      ('activation1', activation_function),
-                      ('fc2', nn.Linear(50, 10, bias=False))]))
-
 #model = nn.Sequential(OrderedDict([
-#                      ('fc1', nn.Linear(20, 20, bias=False)),
+#                      ('fc1', nn.Linear(30, 50, bias=False)),
 #                      ('activation1', activation_function),
-#                      ('fc2', nn.Linear(20, 20, bias=False)),
-#                      ('activation2', activation_function),
-#                      ('fc3', nn.Linear(20, 10, bias=False))]))
+#                      ('fc2', nn.Linear(50, 10, bias=False))]))
+
+model = nn.Sequential(OrderedDict([
+                      ('fc1', nn.Linear(20, 20, bias=False)),
+                      ('activation1', activation_function),
+                      ('fc2', nn.Linear(20, 20, bias=False)),
+                      ('activation2', activation_function),
+                      ('fc3', nn.Linear(20, 10, bias=False))]))
 
 
 def init_weights(m):

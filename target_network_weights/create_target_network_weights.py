@@ -3,9 +3,9 @@ import pathlib
 
 num_layers = 4
 
-scale_factor1 = 5.0
-scale_factor2 = 10.0
-scale_factor3 = 15.0
+scale_factor1 = 2.0
+scale_factor2 = 6.0
+scale_factor3 = 10.0
 
 input_size = 20
 output_size = 10
