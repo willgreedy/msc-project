@@ -350,6 +350,11 @@ class Experiment:
                 MonitorBuilder.create_error_monitor('sum_squares_error', self.model, self.input_output_stream,
                                                     'sum_squares_error', self.dynamics,
                                                     update_frequency=self.monitor_frequency), 100000)]
+        elif monitor_name == 'sum_squares_potential_error':
+            self.monitors += [ExponentialAverageMonitor(
+                MonitorBuilder.create_error_monitor('sum_squares_potential_error', self.model, self.input_output_stream,
+                                                    'sum_squares_potential_error', self.dynamics,
+                                                    update_frequency=self.monitor_frequency), 100000)]
         else:
             Exception('Could not find default monitor {}'.format(monitor_name))
 
