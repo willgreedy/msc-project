@@ -60,12 +60,16 @@ class Monitor(ABC):
         return self.update_frequency
 
     def prepend_data(self, prev_monitor_save_location):
-        with open(prev_monitor_save_location, 'rb') as file:
-            prev_monitor_iter_numbers, prev_monitor_values = pickle.load(file)
-        self.iter_numbers = prev_monitor_iter_numbers + self.iter_numbers
-        self.values = prev_monitor_values + self.values
-        del prev_monitor_iter_numbers
-        del prev_monitor_values
+        try:
+            with open(prev_monitor_save_location, 'rb') as file:
+                prev_monitor_iter_numbers, prev_monitor_values = pickle.load(file)
+            self.iter_numbers = prev_monitor_iter_numbers + self.iter_numbers
+            self.values = prev_monitor_values + self.values
+            del prev_monitor_iter_numbers
+            del prev_monitor_values
+        except FileNotFoundError:
+            print('Could not find previous monitor data at {}. Initialising from this iteration.'
+                  .format(prev_monitor_save_location))
 
     def save_data(self, new_monitor_save_location):
         with open(new_monitor_save_location, 'wb') as file:
