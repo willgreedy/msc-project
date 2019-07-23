@@ -17,3 +17,4 @@ layer_2_individual_pyramidal_soma_potential
 layer_2_individual_interneuron_soma_potential
 layer_3_individual_pyramidal_soma_potential
 individual_target_value
+sum_squares_error
