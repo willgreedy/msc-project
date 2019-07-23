@@ -353,12 +353,12 @@ class MonitorBuilder:
                 # value = np.sum((feedforward_weights - predict_weights) ** 2)
                 value = np.linalg.norm(feedforward_weights - predict_weights)
                 return float(value)
-        elif weight_type == 'feedback_interneuron_diff':
+        elif weight_type == 'feedback_negative_interneuron_diff':
             def get_diff(num_iters):
                 feedback_weights = layer.get_feedback_weights()
-                interneuron_weights = layer.get_interneuron_weights()
+                negative_interneuron_weights = -layer.get_interneuron_weights()
                 # value = np.sum((feedback_weights - interneuron_weights) ** 2)
-                value = np.linalg.norm(feedback_weights - interneuron_weights)
+                value = np.linalg.norm(feedback_weights - negative_interneuron_weights)
                 return float(value)
         else:
             raise Exception('Invalid weight type: {}'.format(weight_type))

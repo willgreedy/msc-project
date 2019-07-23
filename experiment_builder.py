@@ -93,7 +93,7 @@ class Experiment:
         elif monitor_name == 'layer_1_feedback_interneuron_weight_difference':
             self.monitors += [
                 MonitorBuilder.create_weight_diff_monitor('layer_1_feedback_interneuron_weight_difference',
-                                                          self.model, 0, 'feedback_interneuron_diff',
+                                                          self.model, 0, 'feedback_negative_interneuron_diff',
                                                           update_frequency=self.monitor_frequency)]
 
         elif monitor_name == 'layer_1_feedforward_feedback_weight_angle':
