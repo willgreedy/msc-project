@@ -22,9 +22,7 @@ class Monitor(ABC):
 
         self.plot_fig, self.plot_ax = plt.subplots()
 
-    def plot_values(self, save_location=None):
-        iter_numbers, values = self.get_values()
-
+    def create_plot(self, iter_numbers, values, save_location=None):
         print("Creating plot with {} values.".format(len(values)))
         self.plot_ax.plot(iter_numbers, values)
         self.plot_ax.set_xlim(iter_numbers[0], iter_numbers[-1])
@@ -44,6 +42,10 @@ class Monitor(ABC):
                 pickle.dump(self.plot_fig, file)
         self.plot_ax.clear()
 
+    def plot(self, save_location=None):
+        iter_numbers, values = self.get_values()
+        self.create_plot(iter_numbers, values, save_location=save_location)
+
     def get_name(self):
         return self.monitor_name
 
@@ -60,19 +62,21 @@ class Monitor(ABC):
         return self.update_frequency
 
     def prepend_data(self, prev_monitor_save_location):
+        filename = '{}/{}.pkl'.format(prev_monitor_save_location, self.get_name())
         try:
-            with open(prev_monitor_save_location, 'rb') as file:
+            with open(filename, 'rb') as file:
                 prev_monitor_iter_numbers, prev_monitor_values = pickle.load(file)
             self.iter_numbers = prev_monitor_iter_numbers + self.iter_numbers
             self.values = prev_monitor_values + self.values
             del prev_monitor_iter_numbers
             del prev_monitor_values
         except FileNotFoundError:
-            print('Could not find previous monitor data at {}. Initialising from this iteration.'
-                  .format(prev_monitor_save_location))
+            print('Could not find previous monitor data at {} Initialising from this iteration.'
+                  .format(filename))
 
     def save_data(self, new_monitor_save_location):
-        with open(new_monitor_save_location, 'wb') as file:
+        filename = '{}/{}.pkl'.format(new_monitor_save_location, self.get_name())
+        with open(filename, 'wb') as file:
             monitor_iter_numbers, monitor_values = self.get_values()
             pickle.dump((monitor_iter_numbers, monitor_values), file)
 
@@ -106,6 +110,10 @@ class ExponentialAverageMonitor(Monitor):
         self.decay_factor = np.exp(-1.0 / (time_constant_iters / monitor.update_frequency))
 
         self.averaged_values = []
+
+    def plot(self, save_location=None):
+        iter_numbers, averaged_values = self.get_averaged_values()
+        self.create_plot(iter_numbers, averaged_values, save_location=save_location)
 
     def get_averaged_values(self):
         iter_numbers, values = self.monitor.get_values()
@@ -147,12 +155,27 @@ class ExponentialAverageMonitor(Monitor):
 
     def prepend_data(self, prev_monitor_save_location):
         self.monitor.prepend_data(prev_monitor_save_location)
+        filename = '{}/{}_averaged.pkl'.format(prev_monitor_save_location, self.get_name())
+        try:
+            with open(filename, 'rb') as file:
+                prev_monitor_averaged_values = pickle.load(file)
+            self.averaged_values = prev_monitor_averaged_values + self.averaged_values
+            del prev_monitor_averaged_values
+        except FileNotFoundError:
+            print('Could not find previous monitor data at {}  . Initialising from this iteration.'
+                  .format(filename))
 
     def save_data(self, new_monitor_save_location):
         self.monitor.save_data(new_monitor_save_location)
+        filename = '{}/{}_averaged.pkl'.format(new_monitor_save_location, self.get_name())
+        with open(filename, 'wb') as file:
+            _, monitor_averaged_values = self.get_averaged_values()
+            pickle.dump(monitor_averaged_values, file)
 
     def clear_data(self):
         self.monitor.clear_data()
+        del self.averaged_values
+        self.averaged_values = []
 
 
 class MonitorBuilder:
@@ -379,8 +402,10 @@ class MonitorBuilder:
                 feedback_weights = layer.get_feedback_weights().T
                 scaled_dot_product = np.dot(feedforward_weights.flatten() / np.linalg.norm(feedforward_weights),
                                             feedback_weights.flatten() / np.linalg.norm(feedback_weights))
-                if np.abs(scaled_dot_product) >= 1.0:
+                if scaled_dot_product >= 1.0:
                     angle = 0.0
+                elif scaled_dot_product <= -1.0:
+                    angle = 180.0
                 else:
                     angle = np.degrees(np.arccos(scaled_dot_product))
                 return float(angle)
@@ -390,8 +415,10 @@ class MonitorBuilder:
                 predict_weights = layer.get_predict_weights()
                 scaled_dot_product = np.dot(feedforward_weights.flatten() / np.linalg.norm(feedforward_weights),
                                             predict_weights.flatten() / np.linalg.norm(predict_weights))
-                if np.abs(scaled_dot_product) >= 1.0:
+                if scaled_dot_product >= 1.0:
                     angle = 0.0
+                elif scaled_dot_product <= -1.0:
+                    angle = 180.0
                 else:
                     angle = np.degrees(np.arccos(scaled_dot_product))
                 return float(angle)
@@ -401,8 +428,10 @@ class MonitorBuilder:
                 interneuron_weights = layer.get_interneuron_weights()
                 scaled_dot_product = np.dot(feedback_weights.flatten() / np.linalg.norm(feedback_weights),
                                             interneuron_weights.flatten() / np.linalg.norm(interneuron_weights))
-                if np.abs(scaled_dot_product) >= 1.0:
+                if scaled_dot_product >= 1.0:
                     angle = 0.0
+                elif scaled_dot_product <= -1.0:
+                    angle = 180.0
                 else:
                     angle = np.degrees(np.arccos(scaled_dot_product))
                 return float(angle)

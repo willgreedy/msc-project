@@ -110,7 +110,7 @@ class StandardDynamicsSimulator(DynamicsSimulator):
     def perform_updates(self):
         layers = self.model.get_layers()
         for layer_index, (_, layer) in enumerate(layers):
-            layer.perform_update(self.step_size, self.weight_update_factor)
+            layer.perform_update(self.step_size)
 
     def compute_standard_layer_updates(self, layer, prev_layer_pyramidal_firing_rates,
                                        next_layer_pyramidal_somatic_potentials):

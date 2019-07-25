@@ -4,7 +4,7 @@ import pathlib
 import numpy as np
 from parameter_config import ParameterConfig
 from models import MultiCompartmentModel
-from helpers import UniformInitialiser, ConstantInitialiser, \
+from helpers import UniformInitialiser, \
     show_plots, load_model, compute_non_linear_transform, create_transfer_function, remove_directory, \
     get_target_network_forward_weights_list, read_monitoring_values_config_file
 from dynamics_simulator import StandardDynamicsSimulator, SimplifiedDynamicsSimulator
@@ -22,19 +22,24 @@ class Experiment:
         self.network_architecture = self.config['network_architecture']
         self.input_size = self.network_architecture['input_size']
         self.output_size = self.network_architecture['output_size']
-        self.layer_sizes = self.network_architecture['layer_sizes']
+        self.hidden_layer_sizes = self.network_architecture['hidden_layer_sizes']
 
         self.weight_inititalision = self.config['weight_intialisation']
         self.weight_inititalision_type = self.weight_inititalision['type']
+        self.init_self_predicting_weights = self.weight_inititalision['self_predicting']
 
         if self.weight_inititalision_type == 'uniform':
             lower_bound = self.weight_inititalision['lower_bound']
             upper_bound = self.weight_inititalision['upper_bound']
             self.feedforward_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
-            self.predict_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
-            self.interneuron_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
-            self.feedback_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
-
+            if self.init_self_predicting_weights:
+                self.predict_weight_inititaliser = None
+                self.feedback_weight_inititaliser = None
+                self.interneuron_weight_inititaliser = None
+            else:
+                self.predict_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
+                self.feedback_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
+                self.interneuron_weight_inititaliser = UniformInitialiser(lower_bound, upper_bound)
         else:
             raise Exception("Invalid weight initialisation type specified.")
 
@@ -45,7 +50,7 @@ class Experiment:
 
         if model_file is None:
             self.model = MultiCompartmentModel(self.input_size,
-                                               self.layer_sizes,
+                                               self.hidden_layer_sizes,
                                                self.output_size,
                                                self.feedforward_weight_inititaliser,
                                                self.predict_weight_inititaliser,
@@ -54,7 +59,8 @@ class Experiment:
                                                self.feedforward_learning_rates,
                                                self.predict_learning_rates,
                                                self.interneuron_learning_rates,
-                                               self.feedback_learning_rates)
+                                               self.feedback_learning_rates,
+                                               self.init_self_predicting_weights)
 
             print("Created {}".format(str(self.model)))
         else:
@@ -396,16 +402,13 @@ class Experiment:
         pathlib.Path(monitor_save_location).mkdir(parents=True, exist_ok=True)
 
         for monitor in self.monitors:
-            monitor_name = monitor.get_name()
-
             if prev_state_save_location is not None:
-                prev_monitor_save_location = '{}/monitors/{}.pkl'.format(prev_state_save_location, monitor_name)
+                prev_monitor_save_location = '{}/monitors'.format(prev_state_save_location)
                 monitor.prepend_data(prev_monitor_save_location)
 
-            monitor.plot_values(save_location=new_state_save_location)
+            monitor.plot(save_location=new_state_save_location)
 
-            new_monitor_save_location = '{}/{}.pkl'.format(monitor_save_location, monitor_name)
-            monitor.save_data(new_monitor_save_location)
+            monitor.save_data(monitor_save_location)
             monitor.clear_data()
 
         self.dynamics_simulator.save_model(save_location=new_state_save_location, name=self.experiment_name)

@@ -134,7 +134,6 @@ class UniformInitialiser(Initialiser):
 
     def sample(self, shape):
         res = np.random.uniform(self.lower_bound, self.upper_bound, shape)
-        #print("Result: {}".format(res))
         return res
 
 
