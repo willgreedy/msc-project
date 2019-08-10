@@ -104,13 +104,13 @@ def compute_non_linear_transform(input_sequence, transfer_function, feedforward_
 
 
 def load_model(location):
-    pkl_file = open(location, 'rb')
-    return pickle.load(pkl_file)
+    with open(location, 'rb') as pkl_file:
+        return pickle.load(pkl_file)
 
 
 def save_model(save_location, name, model):
-    output = open(save_location + '/' + name + '.pkl', 'wb')
-    pickle.dump(model, output)
+    with open(save_location + '/' + name + '.pkl', 'wb') as output:
+        pickle.dump(model, output)
 
 
 def read_monitoring_values_config_file(config_file):

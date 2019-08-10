@@ -26,6 +26,7 @@ class Experiment:
 
         self.weight_inititalision = self.config['weight_intialisation']
         self.weight_inititalision_type = self.weight_inititalision['type']
+        self.tied_weights = self.weight_inititalision['tied_weights']
         self.init_self_predicting_weights = self.weight_inititalision['self_predicting']
 
         if self.weight_inititalision_type == 'uniform':
@@ -48,6 +49,12 @@ class Experiment:
         self.interneuron_learning_rates = self.config['interneuron_learning_rates']
         self.feedback_learning_rates = self.config['feedback_learning_rates']
 
+        self.dynamics = self.config['dynamics']
+
+        self_predicting_scale_factor = (self.dynamics['leak_conductance'] + self.dynamics['basal_conductance']) / \
+                                       (self.dynamics['leak_conductance'] + self.dynamics['basal_conductance'] +
+                                        self.dynamics['apical_conductance'])
+
         if model_file is None:
             self.model = MultiCompartmentModel(self.input_size,
                                                self.hidden_layer_sizes,
@@ -60,14 +67,16 @@ class Experiment:
                                                self.predict_learning_rates,
                                                self.interneuron_learning_rates,
                                                self.feedback_learning_rates,
-                                               self.init_self_predicting_weights)
+                                               self.init_self_predicting_weights,
+                                               self_predicting_scale_factor,
+                                               self.tied_weights)
 
             print("Created {}".format(str(self.model)))
+
         else:
             self.model = load_model(model_file)
             print("Loaded {}".format(str(self.model)))
 
-        self.dynamics = self.config['dynamics']
         self.dynamics_simulator = None
         self.input_output_stream = None
 
@@ -361,6 +370,31 @@ class Experiment:
                 MonitorBuilder.create_error_monitor('sum_squares_potential_error', self.model, self.input_output_stream,
                                                     'sum_squares_potential_error', self.dynamics,
                                                     update_frequency=self.monitor_frequency), 100000)]
+        elif monitor_name == 'layer_1_backprop_update_angle':
+            self.monitors += [ExponentialAverageMonitor(
+                MonitorBuilder.create_backprop_update_angle_comparison_monitor('layer_1_backprop_update_angle',
+                                                                               self.model,
+                                                                               0,
+                                                                               self.input_output_stream,
+                                                                               self.dynamics,
+                                                                               update_frequency=
+                                                                               self.example_iterations,
+                                                                               update_iteration_offset=
+                                                                               int(self.example_iterations / 2)),
+                500000)]
+        elif monitor_name == 'layer_2_backprop_update_angle':
+            self.monitors += [ExponentialAverageMonitor(
+                MonitorBuilder.create_backprop_update_angle_comparison_monitor('layer_2_backprop_update_angle',
+                                                                               self.model,
+                                                                               1,
+                                                                               self.input_output_stream,
+                                                                               self.dynamics,
+                                                                               update_frequency=
+                                                                               self.example_iterations,
+                                                                               update_iteration_offset=
+                                                                               int(self.example_iterations / 2)),
+                500000)]
+
         else:
             Exception('Could not find default monitor {}'.format(monitor_name))
 
@@ -433,6 +467,7 @@ class ExperimentBuilder:
                                          target_network_weights_path,
                                          model_file=None):
         experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
+        experiment.example_iterations = example_iterations
         transfer_function = create_transfer_function(experiment.dynamics['transfer_function'])
 
         target_network_forward_weights_list = get_target_network_forward_weights_list(target_network_weights_path)
@@ -483,6 +518,7 @@ class ExperimentBuilder:
     def create_xor_experiment(config, experiment_name, train_data_path, example_iterations,
                               self_predict_phase_length, model_file=None):
         experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
+        experiment.example_iterations = example_iterations
         # input_sequence = [[0.1, 0.1, 0.8], [0.1, 0.8, 0.8], [0.8, 0.1, 0.8], [0.8, 0.8, 0.8]]
         # output_sequence = [0.1, 0.8, 0.8, 0.1]
 
@@ -509,7 +545,7 @@ class ExperimentBuilder:
                                               self_predict_phase_length, model_file=None):
         experiment = Experiment(config=config, experiment_name=experiment_name, model_file=model_file)
 
-        input_sequence = np.array([1.0, -1.0])
+        input_sequence = np.array([[1.0, -1.0]])
         output_sequence = np.array([2.0])
         # input_stream = CompositeStream([CyclingStream((self.input_size, 1), input_sequence, example_iterations),
 
@@ -615,6 +651,13 @@ if __name__ == '__main__':
                                                                train_data_path=args.train_data_path,
                                                                training_phase_length=training_phase_length,
                                                                model_file=args.model_file)
+    elif experiment_name.startswith('single_input_output'):
+        experiment = ExperimentBuilder.create_single_input_output_experiment(config=parameter_config,
+                                                                             experiment_name=experiment_name,
+                                                                             example_iterations=args.example_iterations,
+                                                                             self_predict_phase_length=
+                                                                             args.self_predict_phase_length,
+                                                                             model_file=args.model_file)
     else:
         raise Exception("Invalid experiment name: {}".format(experiment_name))
 

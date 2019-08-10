@@ -2,3 +2,4 @@
 datasets/mnist
 __pycache__/
 experiment_plots/
+figure_creation/

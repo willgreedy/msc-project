@@ -11,11 +11,12 @@ import pathlib
 
 
 class Monitor(ABC):
-    def __init__(self, monitor_name, var_name, plot_range=None, update_frequency=1):
+    def __init__(self, monitor_name, var_name, plot_range=None, update_frequency=1, update_iteration_offset=0):
         self.monitor_name = monitor_name
         self.var_name = var_name
         self.plot_range = plot_range
         self.update_frequency = update_frequency
+        self.update_iteration_offset = update_iteration_offset
 
         self.iter_numbers = []
         self.values = []
@@ -61,6 +62,12 @@ class Monitor(ABC):
     def get_update_frequency(self):
         return self.update_frequency
 
+    def get_update_iteration_offset(self):
+        if self.update_iteration_offset is not None:
+            return self.update_iteration_offset
+        else:
+            return 0
+
     def prepend_data(self, prev_monitor_save_location):
         filename = '{}/{}.pkl'.format(prev_monitor_save_location, self.get_name())
         try:
@@ -92,8 +99,9 @@ class Monitor(ABC):
 
 
 class GenericMonitor(Monitor):
-    def __init__(self, monitor_name, var_name, monitor_function, plot_range=None, update_frequency=1):
-        super().__init__(monitor_name, var_name, plot_range, update_frequency)
+    def __init__(self, monitor_name, var_name, monitor_function, plot_range=None, update_frequency=1,
+                 update_iteration_offset=0):
+        super().__init__(monitor_name, var_name, plot_range, update_frequency, update_iteration_offset)
         self.monitor_function = monitor_function
 
     def update(self, iter_number):
@@ -152,6 +160,9 @@ class ExponentialAverageMonitor(Monitor):
 
     def get_update_frequency(self):
         return self.monitor.get_update_frequency()
+
+    def get_update_iteration_offset(self):
+        return self.monitor.get_update_iteration_offset()
 
     def prepend_data(self, prev_monitor_save_location):
         self.monitor.prepend_data(prev_monitor_save_location)
@@ -398,8 +409,12 @@ class MonitorBuilder:
         if weight_type == 'feedforward_feedback_angle':
 
             def get_angle(num_iters):
+                #print('----')
                 feedforward_weights = next_layer.get_feedforward_weights()
+                #print(feedforward_weights)
                 feedback_weights = layer.get_feedback_weights().T
+                #print(feedback_weights)
+                #print(np.dot(feedforward_weights.T, feedback_weights))
                 scaled_dot_product = np.dot(feedforward_weights.flatten() / np.linalg.norm(feedforward_weights),
                                             feedback_weights.flatten() / np.linalg.norm(feedback_weights))
                 if scaled_dot_product >= 1.0:
@@ -498,3 +513,82 @@ class MonitorBuilder:
 
         var_name = error_type
         return GenericMonitor(monitor_name, var_name, get_error, update_frequency=update_frequency)
+
+    @staticmethod
+    def create_backprop_update_angle_comparison_monitor(monitor_name, model, layer_number, input_output_stream,
+                                                        dynamics_parameters, update_frequency, update_iteration_offset):
+        layers = model.get_layers()
+        transfer_function_config = dynamics_parameters['transfer_function']
+
+        import torch
+        from torch import nn, optim
+        from collections import OrderedDict
+        from standard_neural_network import SoftRectifyTransferFunction
+
+        if transfer_function_config['type'] == 'soft-rectify':
+            activation_function = SoftRectifyTransferFunction(config=transfer_function_config)
+        elif transfer_function_config['type'] == 'logistic':
+            activation_function = nn.Sigmoid()
+        else:
+            raise Exception('Invalid activation function: {}'.format(transfer_function_config['type']))
+
+        nn_layers = OrderedDict()
+        for i, layer in enumerate(layers[:-1]):
+            ff_shape = layer[1].get_feedforward_weights().T.shape
+            print(ff_shape)
+            nn_layers['fc{}'.format(i+1)] = nn.Linear(ff_shape[0], ff_shape[1], bias=False)
+            nn_layers['activation{}'.format(i)] = activation_function
+
+        final_ff_shape = layers[-1][1].get_feedforward_weights().T.shape
+        print(final_ff_shape)
+        nn_layers['fc{}'.format(len(layers))] = nn.Linear(final_ff_shape[0], final_ff_shape[1], bias=False)
+
+        print(nn_layers)
+        nn_model = nn.Sequential(nn_layers)
+
+        #nn_model = nn.Sequential(OrderedDict([
+        #    ('fc1', nn.Linear(30, 50, bias=False)),
+        #    ('activation1', activation_function),
+        #    ('fc2', nn.Linear(50, 10, bias=False))]))
+
+        train_criterion = nn.MSELoss()
+        optimizer = optim.SGD(nn_model.parameters(), lr=0.05, momentum=0.0)
+
+        def get_update_angle_comparison(num_iters):
+            inputs = torch.tensor(input_output_stream.get_inputs(num_iters)).float().t()
+            output_targets = torch.tensor(input_output_stream.get_output_targets(num_iters)).float().t()
+
+            params = list(nn_model.parameters())
+
+            for i in range(len(params)):
+                param = params[i]
+                feedforward_weights = torch.tensor(layers[i][1].get_feedforward_weights()).float()
+                param.data.copy_(feedforward_weights)
+
+            optimizer = optim.SGD(nn_model.parameters(), lr=0.01, momentum=0.0)
+            optimizer.zero_grad()
+            outputs = nn_model(inputs)
+            train_loss = train_criterion(outputs, output_targets)
+            train_loss.backward()
+
+            param_grad = -1 * np.array(params[layer_number].grad.data)
+            change_feedforward_weights = layers[layer_number][1].change_feedforward_weights
+
+            scaled_dot_product = np.dot(param_grad.flatten() /
+                                        np.linalg.norm(param_grad),
+                                        change_feedforward_weights.flatten() /
+                                        np.linalg.norm(change_feedforward_weights))
+            if scaled_dot_product >= 1.0:
+                angle = 0.0
+            elif scaled_dot_product <= -1.0:
+                angle = 180.0
+            else:
+                angle = np.degrees(np.arccos(scaled_dot_product))
+            #print(angle)
+            return angle
+
+
+        var_name = 'backprop_update_angle'
+        return GenericMonitor(monitor_name, var_name, get_update_angle_comparison,
+                              update_frequency=update_frequency,
+                              update_iteration_offset=update_iteration_offset)

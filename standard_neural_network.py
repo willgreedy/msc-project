@@ -69,130 +69,131 @@ class MSERateLoss(nn.Module):
                         reduction=self.reduction)
 
 
-transfer_function = create_transfer_function(config=transfer_function_config)
+if __name__ == '__main__':
+    transfer_function = create_transfer_function(config=transfer_function_config)
 
-target_network_train_dataset = TargetNetworkDataset(
-    input_sequence_data_path='./datasets/target_network/train_input_sequence_size20_examples500.npy',
-    target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
-    transfer_function=transfer_function)
+    target_network_train_dataset = TargetNetworkDataset(
+        input_sequence_data_path='./datasets/target_network/train_input_sequence_size20_examples500.npy',
+        target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
+        transfer_function=transfer_function)
 
-target_network_test_dataset = TargetNetworkDataset(
-    input_sequence_data_path='./datasets/target_network/test_input_sequence_size20_examples500.npy',
-    target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
-    transfer_function=transfer_function)
+    target_network_test_dataset = TargetNetworkDataset(
+        input_sequence_data_path='./datasets/target_network/test_input_sequence_size20_examples500.npy',
+        target_network_weights_path='./target_network_weights/4_layer_sf_2x6x10/',
+        transfer_function=transfer_function)
 
-activation_function = SoftRectifyTransferFunction(config=transfer_function_config)
+    activation_function = SoftRectifyTransferFunction(config=transfer_function_config)
 
-#model = nn.Sequential(OrderedDict([
-#                      ('fc1', nn.Linear(30, 50, bias=False)),
-#                      ('activation1', activation_function),
-#                      ('fc2', nn.Linear(50, 10, bias=False))]))
+    #model = nn.Sequential(OrderedDict([
+    #                      ('fc1', nn.Linear(30, 50, bias=False)),
+    #                      ('activation1', activation_function),
+    #                      ('fc2', nn.Linear(50, 10, bias=False))]))
 
-model = nn.Sequential(OrderedDict([
-                      ('fc1', nn.Linear(20, 20, bias=False)),
-                      ('activation1', activation_function),
-                      ('fc2', nn.Linear(20, 20, bias=False)),
-                      ('activation2', activation_function),
-                      ('fc3', nn.Linear(20, 10, bias=False))]))
+    model = nn.Sequential(OrderedDict([
+                          ('fc1', nn.Linear(20, 20, bias=False)),
+                          ('activation1', activation_function),
+                          ('fc2', nn.Linear(20, 20, bias=False)),
+                          ('activation2', activation_function),
+                          ('fc3', nn.Linear(20, 10, bias=False))]))
 
 
-def init_weights(m):
-    if type(m) == nn.Linear:
-        nn.init.uniform_(m.weight, -1.0, 1.0)
+    def init_weights(m):
+        if type(m) == nn.Linear:
+            nn.init.uniform_(m.weight, -1.0, 1.0)
 
-model.apply(init_weights)
+    model.apply(init_weights)
 
-device = torch.device("cpu")
-eval_criterion = MSERateLoss(activation_function)
-train_criterion = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.05, momentum=0.009)
+    device = torch.device("cpu")
+    eval_criterion = MSERateLoss(activation_function)
+    train_criterion = nn.MSELoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.05, momentum=0.009)
 
-train_loss_list = []
-test_loss_list = []
+    train_loss_list = []
+    test_loss_list = []
 
-best_test_loss = -np.inf
-best_test_loss_epoch = None
-best_test_loss_model = None
-
-model.eval()
-train_eval_loss = 0.0
-for _, data in enumerate(target_network_train_dataset, 0):
-    inputs, labels = data
-    outputs = model(inputs)
-    eval_loss = eval_criterion(outputs, labels)
-    train_eval_loss += eval_loss.item()
-average_train_loss = train_eval_loss / len(target_network_train_dataset)
-
-test_loss = 0.0
-for _, data in enumerate(target_network_test_dataset, 0):
-    inputs, labels = data
-    outputs = model(inputs)
-    eval_loss = eval_criterion(outputs, labels)
-    test_loss += eval_loss.item()
-
-average_test_loss = test_loss / len(target_network_test_dataset)
-print('Initial train_loss={}, test_loss={}'.format(average_train_loss, average_test_loss))
-
-num_epochs = 200
-for epoch in range(num_epochs):  # loop over the dataset multiple times
-    train_eval_loss = 0.0
-    model.train()
-    for _, data in enumerate(target_network_train_dataset, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
-
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        # forward + backward + optimize
-        outputs = model(inputs)
-
-        train_loss = train_criterion(outputs, labels)
-        train_loss.backward()
-        eval_loss = eval_criterion(outputs, labels)
-        optimizer.step()
-
-        # print statistics
-        train_eval_loss += eval_loss.item()
-    average_train_eval_loss = train_eval_loss / len(target_network_train_dataset)
-    train_loss_list += [average_train_eval_loss]
+    best_test_loss = -np.inf
+    best_test_loss_epoch = None
+    best_test_loss_model = None
 
     model.eval()
-    test_loss = 0.0
+    train_eval_loss = 0.0
+    for _, data in enumerate(target_network_train_dataset, 0):
+        inputs, labels = data
+        outputs = model(inputs)
+        eval_loss = eval_criterion(outputs, labels)
+        train_eval_loss += eval_loss.item()
+    average_train_loss = train_eval_loss / len(target_network_train_dataset)
 
-    first_outputs = []
-    first_targets = []
+    test_loss = 0.0
     for _, data in enumerate(target_network_test_dataset, 0):
         inputs, labels = data
-
         outputs = model(inputs)
-        first_outputs += [outputs[0]]
-        first_targets += [labels[0]]
         eval_loss = eval_criterion(outputs, labels)
-
         test_loss += eval_loss.item()
 
     average_test_loss = test_loss / len(target_network_test_dataset)
-    test_loss_list += [average_test_loss]
+    print('Initial train_loss={}, test_loss={}'.format(average_train_loss, average_test_loss))
 
-    if average_test_loss >= best_test_loss:
-        best_test_loss = average_test_loss
-        best_test_loss_epoch = epoch
-        torch.save(model, './saved_models/standard_neural_network.pkl')
+    num_epochs = 200
+    for epoch in range(num_epochs):  # loop over the dataset multiple times
+        train_eval_loss = 0.0
+        model.train()
+        for _, data in enumerate(target_network_train_dataset, 0):
+            # get the inputs; plot_objects is a list of [inputs, labels]
+            inputs, labels = data
 
-    if epoch % 1 == 0:
-        print('Epoch {} train_loss={}, test_loss={}'.format(epoch + 1,
-                                                            average_train_eval_loss,
-                                                            average_test_loss))
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-print('Finished Training')
-import matplotlib.pyplot as plt
+            # forward + backward + optimize
+            outputs = model(inputs)
 
-plt.figure()
-plt.plot(range(num_epochs), train_loss_list)
-plt.plot(range(num_epochs), test_loss_list)
-plt.figure()
-plt.plot(range(500), first_outputs, label='output')
-plt.plot(range(500), first_targets, label='output')
-plt.show()
-#print(loss)
+            train_loss = train_criterion(outputs, labels)
+            train_loss.backward()
+            eval_loss = eval_criterion(outputs, labels)
+            optimizer.step()
+
+            # print statistics
+            train_eval_loss += eval_loss.item()
+        average_train_eval_loss = train_eval_loss / len(target_network_train_dataset)
+        train_loss_list += [average_train_eval_loss]
+
+        model.eval()
+        test_loss = 0.0
+
+        first_outputs = []
+        first_targets = []
+        for _, data in enumerate(target_network_test_dataset, 0):
+            inputs, labels = data
+
+            outputs = model(inputs)
+            first_outputs += [outputs[0]]
+            first_targets += [labels[0]]
+            eval_loss = eval_criterion(outputs, labels)
+
+            test_loss += eval_loss.item()
+
+        average_test_loss = test_loss / len(target_network_test_dataset)
+        test_loss_list += [average_test_loss]
+
+        if average_test_loss >= best_test_loss:
+            best_test_loss = average_test_loss
+            best_test_loss_epoch = epoch
+            torch.save(model, './saved_models/standard_neural_network.pkl')
+
+        if epoch % 1 == 0:
+            print('Epoch {} train_loss={}, test_loss={}'.format(epoch + 1,
+                                                                average_train_eval_loss,
+                                                                average_test_loss))
+
+    print('Finished Training')
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.plot(range(num_epochs), train_loss_list)
+    plt.plot(range(num_epochs), test_loss_list)
+    plt.figure()
+    plt.plot(range(500), first_outputs, label='output')
+    plt.plot(range(500), first_targets, label='output')
+    plt.show()
+    #print(loss)

@@ -33,7 +33,7 @@ class DynamicsSimulator(ABC):
 
             self.step_simulation()
             for monitor in self.monitors:
-                if self.iteration_number % monitor.get_update_frequency() == 0:
+                if (self.iteration_number + monitor.get_update_iteration_offset()) % monitor.get_update_frequency() == 0:
                     monitor.update(self.iteration_number)
 
     def set_testing_phase(self, testing_phase):

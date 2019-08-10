@@ -6,7 +6,7 @@ class MultiCompartmentModel:
     def __init__(self, input_size, hidden_layer_sizes, output_size, feedforward_weight_intitialiser,
                  feedback_weight_intitialiser, predict_weight_intitialiser, interneuron_weight_intitialiser,
                  feedforward_learning_rates, predict_learning_rates, interneuron_learning_rates, feedback_learning_rates,
-                 init_self_predicting_weights):
+                 init_self_predicting_weights=False, self_predicting_scale_factor=None, tied_weights=False):
 
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         num_layers = len(layer_sizes)
@@ -28,9 +28,14 @@ class MultiCompartmentModel:
                                range(len(layer_sizes) - 1)]
 
         if init_self_predicting_weights:
-            predict_weights = [ff_weights.copy() for ff_weights in feedforward_weights[1:]]
-            interneuron_weights = [-ff_weights.copy().T for ff_weights in feedforward_weights[1:]]
-            feedback_weights = [ff_weights.copy().T for ff_weights in feedforward_weights[1:]]
+            if tied_weights:
+                predict_weights = [ff_weights for ff_weights in feedforward_weights[1:]]
+                interneuron_weights = [-ff_weights.T for ff_weights in feedforward_weights[1:]]
+                feedback_weights = [ff_weights.T for ff_weights in feedforward_weights[1:]]
+            else:
+                predict_weights = [self_predicting_scale_factor * ff_weights.copy() for ff_weights in feedforward_weights[1:-1]] + [feedforward_weights[-1].copy()]
+                interneuron_weights = [-ff_weights.copy().T for ff_weights in feedforward_weights[1:]]
+                feedback_weights = [ff_weights.copy().T for ff_weights in feedforward_weights[1:]]
         else:
             predict_weights = [predict_weight_intitialiser.sample((layer_sizes[i+1], layer_sizes[i])) for i in
                                range(1, len(layer_sizes) - 1)]
