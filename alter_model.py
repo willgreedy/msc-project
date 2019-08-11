@@ -13,7 +13,7 @@ interneuron_lr = layer.get_interneuron_learning_rate()
 predict_lr = layer.get_predict_learning_rate()
 feedback_lr = layer.get_feedback_learning_rate()
 
-for feedback_lr in [0.000125]:#, 0.00050, 0.00075, 0.001, 0.00125]:
+for feedback_lr in [0.0000625]:#, 0.00050, 0.00075, 0.001, 0.00125]:
     layer.set_feedback_learning_rate(feedback_lr)
     save_model('saved_models/', 'xor_base_fb_plas_{}'.format(str(feedback_lr).replace('.', '-')), model)
     print(model.get_layers()[0][1].get_feedback_learning_rate())
