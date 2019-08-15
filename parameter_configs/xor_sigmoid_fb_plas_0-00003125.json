@@ -17,7 +17,7 @@
     "plastic_feedforward_weights": true,
     "plastic_predict_weights": true,
     "plastic_interneuron_weights": true,
-    "plastic_feedback_weights": false,
+    "plastic_feedback_weights": true,
 
     "transfer_function": {
       "type": "logistic"
@@ -33,13 +33,13 @@
   },
 
   "network_architecture":{
-    "input_size": 2,
+    "input_size": 3,
     "output_size": 1,
-    "hidden_layer_sizes": [3]
+    "hidden_layer_sizes": [20]
   },
 
-  "feedforward_learning_rates": [0.005, 0.005],
-  "predict_learning_rates": [0.005],
-  "interneuron_learning_rates": [0.005],
-  "feedback_learning_rates": [0.005]
+  "feedforward_learning_rates": [0.0011875, 0.0005],
+  "predict_learning_rates": [0.0011875],
+  "interneuron_learning_rates": [0.0059375],
+  "feedback_learning_rates": [0.00003125]
 }
